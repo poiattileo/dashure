@@ -184,6 +184,7 @@ Html::header('Zabbix — Dashure', $_SERVER['PHP_SELF'], 'config', 'plugin');
                             <?php endforeach; ?>
                         </fieldset>
                     <?php endif; ?>
+                    <label class="dashure-check"><input type="checkbox" name="combine_toggle" value="1"<?= (int) ($editChart['combine_toggle'] ?? 0) === 1 ? ' checked' : '' ?>> Mostrar botão "Separado / Somado" no gráfico</label>
                     <label class="dashure-check"><input type="checkbox" name="aggregate" value="1"<?= (int) ($editChart['aggregate'] ?? 0) === 1 ? ' checked' : '' ?>> Somar as séries (uma linha com o total de todos os itens)</label>
                     <label class="dashure-check"><input type="checkbox" name="is_active" value="1"<?= (int) ($editChart['is_active'] ?? 1) === 1 ? ' checked' : '' ?>> Ativo</label>
                     <div><button class="dashure-btn" type="submit"><i class="ti ti-device-floppy"></i> Salvar gráfico</button></div>

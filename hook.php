@@ -123,6 +123,13 @@ function plugin_dashure_install(): bool
             ]);
         }
     }
+    // 1.4.1: botão "Separado / Somado" por gráfico (liga no CPU e na rede).
+    if (!$DB->fieldExists('glpi_plugin_dashure_zabbix_charts', 'combine_toggle')) {
+        $DB->doQuery("ALTER TABLE `glpi_plugin_dashure_zabbix_charts` ADD `combine_toggle` TINYINT(1) NOT NULL DEFAULT 0 AFTER `aggregate`") or die($DB->error());
+        $DB->update('glpi_plugin_dashure_zabbix_charts', ['combine_toggle' => 1], [
+            'aggregate' => 0, 'pattern' => ['system.cpu.util', 'net.if.in[*]', 'net.if.out[*]'],
+        ]);
+    }
     // 1.4.0: total opcional do gráfico (ex.: "54 GB") para a escala "comparado ao total".
     if (!$DB->fieldExists('glpi_plugin_dashure_zabbix_charts', 'total_text')) {
         $DB->doQuery("ALTER TABLE `glpi_plugin_dashure_zabbix_charts` ADD `total_text` VARCHAR(50) NOT NULL DEFAULT '' AFTER `hostids`") or die($DB->error());

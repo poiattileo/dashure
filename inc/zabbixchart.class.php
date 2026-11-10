@@ -86,6 +86,7 @@ class PluginDashureZabbixChart
             'rank'        => (int) ($input['rank'] ?? 0),
             'total_text'  => self::validTotal((string) ($input['total_text'] ?? '')),
             'aggregate'   => !empty($input['aggregate']) ? 1 : 0,
+            'combine_toggle' => !empty($input['combine_toggle']) ? 1 : 0,
             'date_mod'    => date('Y-m-d H:i:s'),
         ];
         $id = (int) ($input['id'] ?? 0);
@@ -214,7 +215,7 @@ class PluginDashureZabbixChart
             $range = '1d';
         }
         $configured = (int) ($chart['aggregate'] ?? 0) === 1;
-        $combine = $combine || $configured;
+        $combine = ($combine && (int) ($chart['combine_toggle'] ?? 0) === 1) || $configured;
         $cacheKey = 'plugin_dashure_zbxchart_' . $id . '_' . $range . '_' . ($combine ? 'c' : 's') . '_' . md5((string) $chart['date_mod']);
         try {
             $cached = $GLPI_CACHE?->get($cacheKey);
@@ -228,7 +229,7 @@ class PluginDashureZabbixChart
         $result = ['title' => (string) $chart['title']]
             + self::seriesFor($items, $range, true, [], self::MAX_SERIES, $combine ? (string) $chart['title'] : '');
         // Botão "Separado / Juntos" só faz sentido com mais de um item e quando o gráfico não é sempre somado.
-        $result['combinable'] = !$configured && count($items) > 1;
+        $result['combinable'] = !$configured && (int) ($chart['combine_toggle'] ?? 0) === 1 && count($items) > 1;
         $result['combined'] = $combine;
         $result['total'] = self::totalFor((string) ($chart['total_text'] ?? ''), (string) $result['units']);
         $seconds = self::RANGES[$range][1];
