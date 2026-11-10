@@ -6,7 +6,7 @@ if (!defined('GLPI_ROOT')) {
 /** Direitos do [URE] Dashure no perfil do GLPI (aba "Dashure" em Administração → Perfis). */
 class PluginDashureProfile extends CommonDBTM
 {
-    public static $rightname = 'profile';
+    public static string $rightname = 'profile';
 
     /** READ = vê a aba Início; UPDATE = gerencia avisos e atalhos. */
     public const RIGHT_HOME = 'plugin_dashure';
