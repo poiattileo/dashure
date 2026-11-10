@@ -2,6 +2,7 @@
 /** Instalação / desinstalação do [URE] Dashure. Idempotente. */
 
 require_once __DIR__ . '/inc/profile.class.php';
+require_once __DIR__ . '/inc/zabbixchart.class.php';
 
 function plugin_dashure_install(): bool
 {
@@ -98,6 +99,21 @@ function plugin_dashure_install(): bool
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
     }
 
+    if (!$DB->tableExists('glpi_plugin_dashure_zabbix_charts')) {
+        $DB->doQuery("CREATE TABLE `glpi_plugin_dashure_zabbix_charts` (
+            `id`          INT {$sign} NOT NULL AUTO_INCREMENT,
+            `title`       VARCHAR(150) NOT NULL DEFAULT '',
+            `match_field` VARCHAR(10) NOT NULL DEFAULT 'key' COMMENT 'key|name',
+            `pattern`     VARCHAR(255) NOT NULL DEFAULT '',
+            `hostids`     TEXT DEFAULT NULL,
+            `is_active`   TINYINT(1) NOT NULL DEFAULT 1,
+            `rank`        INT NOT NULL DEFAULT 0,
+            `date_mod`    TIMESTAMP NULL DEFAULT NULL,
+            PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
+        PluginDashureZabbixChart::installDefaults();
+    }
+
     PluginDashureProfile::install();
 
     return true;
@@ -111,7 +127,7 @@ function plugin_dashure_uninstall(): bool
 
     foreach ([
         'glpi_plugin_dashure_notices', 'glpi_plugin_dashure_links', 'glpi_plugin_dashure_notes',
-        'glpi_plugin_dashure_notes_profiles', 'glpi_plugin_dashure_notes_logs', 'glpi_plugin_dashure_zabbix',
+        'glpi_plugin_dashure_notes_profiles', 'glpi_plugin_dashure_notes_logs', 'glpi_plugin_dashure_zabbix', 'glpi_plugin_dashure_zabbix_charts',
     ] as $table) {
         if ($DB->tableExists($table)) {
             $DB->doQuery("DROP TABLE `{$table}`") or die($DB->error());

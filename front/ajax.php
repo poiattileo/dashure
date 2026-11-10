@@ -20,6 +20,16 @@ try {
             }
             echo json_encode(['ok' => true, 'html' => PluginDashureZabbix::renderPanel()], JSON_UNESCAPED_UNICODE);
             break;
+        case 'zabbix_chart':
+            if (!PluginDashureZabbix::canView()) {
+                http_response_code(403);
+                throw new RuntimeException('Sem permissão.');
+            }
+            echo json_encode(['ok' => true] + PluginDashureZabbixChart::data(
+                (int) ($_POST['id'] ?? 0),
+                (string) ($_POST['range'] ?? '1d')
+            ), JSON_UNESCAPED_UNICODE);
+            break;
         case 'note_secret':
             if (!PluginDashureNote::canView()) {
                 http_response_code(403);

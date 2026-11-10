@@ -56,17 +56,19 @@
             });
             var data = await response.json().catch(function () { return {}; });
             if (!response.ok || !data.ok) { throw new Error(data.error || 'Falha ao consultar o Zabbix.'); }
-            section.innerHTML = data.html;
+            (section.querySelector('[data-zabbix-summary]') || section).innerHTML = data.html;
         } catch (error) {
             var p = document.createElement('p');
             p.className = 'dashure-muted dashure-zabbix-error';
             p.textContent = error.message;
             var old = section.querySelector('.dashure-zabbix-error');
             if (old) { old.remove(); }
-            if (section.querySelector('.dashure-card')) { section.prepend(p); } else { section.innerHTML = ''; section.appendChild(p); }
+            var target = section.querySelector('[data-zabbix-summary]') || section;
+            if (target.querySelector('.dashure-card')) { target.prepend(p); } else { target.innerHTML = ''; target.appendChild(p); }
         } finally {
             delete section.dataset.loading;
         }
+        loadCharts(section);
         if (!section.dataset.timer) {
             var seconds = Math.max(30, parseInt(section.getAttribute('data-refresh'), 10) || 60);
             section.dataset.timer = String(window.setInterval(function () {
@@ -79,6 +81,138 @@
             }, seconds * 1000));
         }
     }
+
+    /* ---------- Gráficos do Zabbix (ECharts, que já vem com o GLPI) ---------- */
+    var RANGE_KEY = 'dashure.zrange';
+    var echartsPromise = null;
+
+    function ensureEcharts(src) {
+        if (window.echarts) { return Promise.resolve(window.echarts); }
+        if (!echartsPromise) {
+            echartsPromise = new Promise(function (resolve, reject) {
+                var s = document.createElement('script');
+                s.src = src;
+                s.onload = function () { resolve(window.echarts); };
+                s.onerror = function () { echartsPromise = null; reject(new Error('Não foi possível carregar a biblioteca de gráficos.')); };
+                document.head.appendChild(s);
+            });
+        }
+        return echartsPromise;
+    }
+
+    function formatValue(value, units) {
+        var v = Number(value);
+        if (!isFinite(v)) { return ''; }
+        var abs = Math.abs(v);
+        if (units === 'B' || units === 'Bps' || units === 'bps') {
+            var base = units === 'bps' ? 1000 : 1024;
+            var names = units === 'bps' ? ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps']
+                : (units === 'Bps' ? ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'] : ['B', 'KB', 'MB', 'GB', 'TB']);
+            var i = 0;
+            while (abs >= base && i < names.length - 1) { v /= base; abs /= base; i++; }
+            return (abs >= 100 ? v.toFixed(0) : abs >= 10 ? v.toFixed(1) : v.toFixed(2)) + ' ' + names[i];
+        }
+        var txt = abs >= 100 ? v.toFixed(0) : abs >= 10 ? v.toFixed(1) : v.toFixed(2);
+        return units ? txt + ' ' + units : txt;
+    }
+
+    var PALETTE = ['#e45959', '#f2b134', '#26b5a3', '#5b6ee1', '#9c5bd6', '#3fa7f5', '#7cc75b', '#f07b3f', '#d6539c', '#8d99ae', '#00a6a6', '#c9a227'];
+
+    function cssVar(name, fallback) {
+        var v = getComputedStyle(document.body).getPropertyValue(name).trim();
+        return v || fallback;
+    }
+
+    async function drawChart(fig, ajax, range, echartsSrc) {
+        var msg = fig.querySelector('[data-chart-msg]');
+        var canvas = fig.querySelector('[data-chart-canvas]');
+        try {
+            var body = new FormData();
+            body.set('action', 'zabbix_chart');
+            body.set('id', fig.getAttribute('data-zabbix-chart'));
+            body.set('range', range);
+            var response = await fetch(ajax, {
+                method: 'POST', body: body, credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            var data = await response.json().catch(function () { return {}; });
+            if (!response.ok || !data.ok) { throw new Error(data.error || 'Falha ao buscar o gráfico.'); }
+            if (!data.series || !data.series.length) {
+                msg.textContent = 'Sem dados para esse período (confira o padrão do gráfico).';
+                msg.hidden = false;
+                canvas.hidden = true;
+                return;
+            }
+            var echarts = await ensureEcharts(echartsSrc);
+            canvas.hidden = false;
+            msg.hidden = !data.truncated;
+            if (data.truncated) { msg.textContent = 'Mostrando as 12 séries de maior média.'; }
+            var chart = echarts.getInstanceByDom(canvas) || echarts.init(canvas);
+            var text = cssVar('--tblr-body-color', '#334155');
+            var grid = cssVar('--tblr-border-color', '#e2e8f0');
+            var units = data.units || '';
+            var stacked = units === 'B';
+            chart.setOption({
+                color: PALETTE,
+                animation: false,
+                grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
+                tooltip: {
+                    trigger: 'axis', confine: true,
+                    valueFormatter: function (v) { return formatValue(v, units); }
+                },
+                legend: { type: 'scroll', bottom: 0, textStyle: { color: text, fontSize: 11 }, itemWidth: 14, itemHeight: 8 },
+                xAxis: {
+                    type: 'time', min: data.from, max: data.to,
+                    axisLabel: { color: text, fontSize: 10, hideOverlap: true },
+                    axisLine: { lineStyle: { color: grid } }, splitLine: { show: false }
+                },
+                yAxis: {
+                    type: 'value', min: 0,
+                    axisLabel: { color: text, fontSize: 10, formatter: function (v) { return formatValue(v, units); } },
+                    splitLine: { lineStyle: { color: grid, type: 'dashed' } }
+                },
+                series: data.series.map(function (s) {
+                    return {
+                        name: s.name, type: 'line', data: s.data, showSymbol: false, smooth: false,
+                        stack: stacked ? 'total' : undefined, lineStyle: { width: 1.4 },
+                        areaStyle: { opacity: stacked ? 0.55 : 0.12 }, sampling: 'lttb'
+                    };
+                })
+            }, true);
+            canvas.style.paddingBottom = '0';
+            chart.resize();
+        } catch (error) {
+            msg.textContent = error.message;
+            msg.hidden = false;
+        }
+    }
+
+    function loadCharts(section, force) {
+        var box = section.querySelector('[data-zabbix-charts]');
+        if (!box) { return; }
+        var stored = store(RANGE_KEY) || '1d';
+        var btn = box.querySelector('[data-zabbix-range="' + stored + '"]') || box.querySelector('[data-zabbix-range]');
+        var range = btn ? btn.getAttribute('data-zabbix-range') : '1d';
+        box.querySelectorAll('[data-zabbix-range]').forEach(function (b) { b.classList.toggle('is-active', b === btn); });
+        var ajax = section.getAttribute('data-ajax');
+        var src = section.getAttribute('data-echarts');
+        box.querySelectorAll('[data-zabbix-chart]').forEach(function (fig) {
+            if (force) {
+                var m = fig.querySelector('[data-chart-msg]');
+                m.textContent = 'Carregando…';
+                m.hidden = false;
+            }
+            drawChart(fig, ajax, range, src);
+        });
+    }
+
+    window.addEventListener('resize', function () {
+        if (!window.echarts) { return; }
+        document.querySelectorAll('[data-chart-canvas]').forEach(function (el) {
+            var c = window.echarts.getInstanceByDom(el);
+            if (c) { c.resize(); }
+        });
+    });
 
     function scan() {
         document.querySelectorAll('[data-dashure-tabs]').forEach(init);
@@ -160,6 +294,13 @@
         if (tab) {
             var key = tab.getAttribute('data-dashure-tab');
             if (activate(tab.closest('.dashure'), key)) { store(STORE_KEY, key); }
+            return;
+        }
+
+        var rangeBtn = event.target.closest('[data-zabbix-range]');
+        if (rangeBtn) {
+            store(RANGE_KEY, rangeBtn.getAttribute('data-zabbix-range'));
+            loadCharts(rangeBtn.closest('[data-dashure-zabbix]'), true);
             return;
         }
 

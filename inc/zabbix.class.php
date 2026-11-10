@@ -84,7 +84,7 @@ class PluginDashureZabbix
 
     private static ?string $version = null;
 
-    private static function rpc(array $config, string $method, array $params, bool $auth = true)
+    public static function rpc(array $config, string $method, array $params, bool $auth = true)
     {
         $endpoint = rtrim((string) $config['url'], '/') . '/api_jsonrpc.php';
         $payload = ['jsonrpc' => '2.0', 'method' => $method, 'params' => $params, 'id' => 1];
@@ -302,9 +302,13 @@ class PluginDashureZabbix
             return '<section class="dashure-card">' . $msg . '</p></section>';
         }
         $config = self::config();
+        global $CFG_GLPI;
         return '<section class="dashure-zabbix" data-dashure-zabbix data-refresh="' . (int) $config['refresh'] . '"'
-            . ' data-ajax="' . $h(PluginDashureHome::pluginUrlPublic('/front/ajax.php')) . '">'
-            . '<p class="dashure-muted"><i class="ti ti-loader-2 dashure-spin"></i> Carregando dados do Zabbix…</p></section>';
+            . ' data-ajax="' . $h(PluginDashureHome::pluginUrlPublic('/front/ajax.php')) . '"'
+            . ' data-echarts="' . $h((string) $CFG_GLPI['root_doc'] . '/lib/echarts.min.js') . '">'
+            . '<div data-zabbix-summary><p class="dashure-muted"><i class="ti ti-loader-2 dashure-spin"></i> Carregando dados do Zabbix…</p></div>'
+            . PluginDashureZabbixChart::renderGrid()
+            . '</section>';
     }
 
     public static function configUrl(): string
