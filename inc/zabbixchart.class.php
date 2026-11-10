@@ -206,10 +206,18 @@ class PluginDashureZabbixChart
             }
             $data = [];
             $sum = 0.0;
+            // Buraco nos dados (host desligado, sem coleta): quebra a linha em vez de ligar os pontos.
+            $gap = max(3 * $bucket, $seconds > 2 * 86400 ? 3 * 3600 : 900);
+            $previous = null;
             foreach ($buckets as $key => [$total, $count]) {
+                $clock = $key * $bucket;
+                if ($previous !== null && $clock - $previous > $gap) {
+                    $data[] = [($previous + $bucket) * 1000, null];
+                }
                 $avg = $total / $count;
-                $data[] = [$key * $bucket * 1000, round($avg, 4)];
+                $data[] = [$clock * 1000, round($avg, 4)];
                 $sum += $avg;
+                $previous = $clock;
             }
             $host = (string) ($item['hosts'][0]['name'] ?? '');
             $series[] = [

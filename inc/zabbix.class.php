@@ -306,8 +306,8 @@ class PluginDashureZabbix
         return '<section class="dashure-zabbix" data-dashure-zabbix data-refresh="' . (int) $config['refresh'] . '"'
             . ' data-ajax="' . $h(PluginDashureHome::pluginUrlPublic('/front/ajax.php')) . '"'
             . ' data-echarts="' . $h((string) $CFG_GLPI['root_doc'] . '/lib/echarts.min.js') . '">'
-            . '<div data-zabbix-summary><p class="dashure-muted"><i class="ti ti-loader-2 dashure-spin"></i> Carregando dados do Zabbix…</p></div>'
             . PluginDashureZabbixChart::renderGrid()
+            . '<div data-zabbix-summary><p class="dashure-muted"><i class="ti ti-loader-2 dashure-spin"></i> Carregando dados do Zabbix…</p></div>'
             . '</section>';
     }
 

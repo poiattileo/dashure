@@ -123,6 +123,18 @@
         return v || fallback;
     }
 
+    /* "Host: Interface ens18: Bits received" -> "Host · ens18" quando o resto é igual em todas as séries. */
+    function shortName(name, series) {
+        var parts = name.split(': ');
+        var host = parts.shift();
+        var rest = parts.join(': ');
+        var others = series.map(function (s) { return s.name.split(': ').slice(1).join(': '); });
+        var same = others.every(function (o) { return o === rest; });
+        var label = same ? host : host + ' · ' + rest.replace(/^Interface\s+/i, '').replace(/:\s*Bits (received|sent)$/i, '')
+            .replace(/:\s*Disk utilization$/i, '');
+        return label.length > 34 ? label.slice(0, 33) + '…' : label;
+    }
+
     async function drawChart(fig, ajax, range, echartsSrc) {
         var msg = fig.querySelector('[data-chart-msg]');
         var canvas = fig.querySelector('[data-chart-canvas]');
@@ -155,15 +167,31 @@
             chart.setOption({
                 color: PALETTE,
                 animation: false,
-                grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
+                grid: { left: 8, right: 16, top: 12, bottom: 40, containLabel: true },
                 tooltip: {
                     trigger: 'axis', confine: true,
                     valueFormatter: function (v) { return formatValue(v, units); }
                 },
-                legend: { type: 'scroll', bottom: 0, textStyle: { color: text, fontSize: 11 }, itemWidth: 14, itemHeight: 8 },
+                legend: {
+                    type: 'scroll', bottom: 0, left: 0, right: 0, itemGap: 14, itemWidth: 14, itemHeight: 8,
+                    textStyle: { color: text, fontSize: 11 },
+                    pageTextStyle: { color: text }, pageIconSize: 10,
+                    // Nome completo no tooltip; na legenda só o essencial.
+                    formatter: function (name) { return shortName(name, data.series); },
+                    tooltip: { show: true }
+                },
                 xAxis: {
                     type: 'time', min: data.from, max: data.to,
-                    axisLabel: { color: text, fontSize: 10, hideOverlap: true },
+                    axisLabel: {
+                        color: text, fontSize: 10, hideOverlap: true,
+                        formatter: function (value) {
+                            var d = new Date(value);
+                            var p = function (n) { return (n < 10 ? '0' : '') + n; };
+                            return (data.to - data.from) > 2 * 86400000
+                                ? p(d.getDate()) + '/' + p(d.getMonth() + 1)
+                                : p(d.getHours()) + ':' + p(d.getMinutes());
+                        }
+                    },
                     axisLine: { lineStyle: { color: grid } }, splitLine: { show: false }
                 },
                 yAxis: {
@@ -173,7 +201,7 @@
                 },
                 series: data.series.map(function (s) {
                     return {
-                        name: s.name, type: 'line', data: s.data, showSymbol: false, smooth: false,
+                        name: s.name, type: 'line', data: s.data, showSymbol: false, smooth: false, connectNulls: false,
                         stack: stacked ? 'total' : undefined, lineStyle: { width: 1.4 },
                         areaStyle: { opacity: stacked ? 0.55 : 0.12 }, sampling: 'lttb'
                     };

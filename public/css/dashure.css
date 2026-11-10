@@ -352,8 +352,9 @@ a.dashure-stat:hover { border-color: var(--tone); color: var(--dashure-text); }
 .dashure-zchart-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
 .dashure-zchart { border: 1px solid var(--dashure-border); border-radius: 12px; margin: 0; min-width: 0; padding: 10px 12px; }
 .dashure-zchart figcaption { font-weight: 700; margin-bottom: 4px; }
-.dashure-zchart-canvas { height: 280px; width: 100%; }
+.dashure-zchart-canvas { height: 300px; width: 100%; }
 .dashure-zchart-canvas[hidden] { display: none; }
 .dashure-zchart-msg { font-size: .82rem; margin: 6px 0 0; }
 .dashure-zchart-msg[hidden] { display: none; }
-@media (max-width: 575px) { .dashure-zchart-grid { grid-template-columns: 1fr; } .dashure-zchart-canvas { height: 240px; } }
+@media (max-width: 575px) { .dashure-zchart-grid { grid-template-columns: 1fr; } .dashure-zchart-canvas { height: 260px; } }
+
