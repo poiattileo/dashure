@@ -12,7 +12,7 @@ class PluginDashureStore
 
     public static function canManage(): bool
     {
-        return Session::haveRight('config', UPDATE);
+        return Session::haveRight('plugin_dashure', UPDATE);
     }
 
     /** Avisos visíveis agora (ativos e dentro do período), fixados primeiro. */

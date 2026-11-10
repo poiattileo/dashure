@@ -1,9 +1,17 @@
 # [URE] Dashure
 
-Plugin para GLPI 12 que adiciona a aba **Início** na página inicial (Central), aberta por padrão a cada login.
+Plugin para GLPI 12 que adiciona a aba **Início** na página inicial (Central), aberta por padrão a cada login para quem tem acesso. Dentro dela há sub-abas:
 
-- **Tralla:** contagem de cards do técnico (Pendente, Em andamento, Retirada, Concluído), backups pendentes, pedidos aguardando decisão de quem aprova e os cards ativos com link direto.
-- **Assignat-ure:** pedidos aguardando assinatura (por fonte visível), lotes enviados por e-mail, papel sem upload e assinados hoje.
-- **Avisos e atalhos:** mural de avisos com tipo, período e fixação, e botões de acesso rápido. Cadastro em *Configurar → Plugins → Dashure* (requer direito de atualizar a configuração).
+- **Anotações** (principal): logins e senhas da equipe em cartões com busca e filtro por categoria. Senha e observações ficam criptografadas com a chave do GLPI; cada anotação é liberada para os perfis marcados nela; a senha só aparece ao clicar em mostrar ou copiar (some sozinha após 30 s) e cada acesso fica no histórico da anotação.
+- **Tralla:** contagem de cards do técnico, backups pendentes, pedidos aguardando decisão e cards ativos com link direto.
+- **Assignat-ure:** pedidos aguardando assinatura, lotes por e-mail, papel sem upload e assinados hoje.
+- **Avisos e atalhos:** mural de avisos com tipo, período e fixação, e botões de acesso rápido.
 
-As seções do Tralla e do Assignat-ure só aparecem quando o plugin correspondente está ativo e o usuário tem acesso.
+## Permissões (Administração → Perfis → aba Dashure)
+
+| Permissão | Opções |
+|---|---|
+| Aba Início | sem acesso · ver · ver e gerenciar avisos e atalhos |
+| Anotações | sem acesso · ver as liberadas para o perfil · ver e criar (edita as próprias) · gerenciar todas |
+
+Na instalação só os perfis que podem alterar a configuração do GLPI recebem acesso; os demais começam sem.

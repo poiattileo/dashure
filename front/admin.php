@@ -3,7 +3,7 @@ include('../../../inc/includes.php');
 
 global $CFG_GLPI;
 
-Session::checkRight('config', UPDATE);
+Session::checkRight('plugin_dashure', UPDATE);
 
 $self = (string) $CFG_GLPI['root_doc'] . '/plugins/dashure/front/admin.php';
 $h = [PluginDashureHome::class, 'h'];

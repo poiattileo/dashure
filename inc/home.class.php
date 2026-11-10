@@ -13,7 +13,7 @@ class PluginDashureHome extends CommonGLPI
 
     public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
     {
-        if ($item instanceof Central) {
+        if ($item instanceof Central && Session::haveRight('plugin_dashure', READ)) {
             return [1 => self::createTabEntry('Início', 0, null, 'ti ti-home')];
         }
         return '';
@@ -21,7 +21,7 @@ class PluginDashureHome extends CommonGLPI
 
     public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
     {
-        if ($item instanceof Central) {
+        if ($item instanceof Central && Session::haveRight('plugin_dashure', READ)) {
             echo self::render();
         }
         return true;
@@ -41,18 +41,25 @@ class PluginDashureHome extends CommonGLPI
     public static function render(): string
     {
         $userId = (int) Session::getLoginUserID();
-        $sections = [];
 
-        foreach ([[self::class, 'renderTralla'], [self::class, 'renderAssignature']] as $renderer) {
+        // Sub-abas: [chave, título, ícone, renderizador]. As vazias (sem acesso) não aparecem.
+        $definitions = [
+            ['notes', 'Anotações', 'ti ti-lock', static fn (): string => PluginDashureNote::canView() ? self::renderNotes() : ''],
+            ['tralla', 'Tralla', 'ti ti-layout-kanban', static fn (): string => self::renderTralla($userId)],
+            ['assignature', 'Assignat-ure', 'ti ti-signature', static fn (): string => self::renderAssignature($userId)],
+            ['notices', 'Avisos e atalhos', 'ti ti-speakerphone', static fn (): string => self::renderLinks() . self::renderNotices()],
+        ];
+        $tabs = [];
+        foreach ($definitions as [$key, $label, $icon, $renderer]) {
             try {
-                $html = $renderer($userId);
+                $html = $renderer();
             } catch (Throwable $e) {
                 // Um plugin com problema não pode derrubar a página inicial inteira.
                 $html = '<section class="dashure-card"><p class="dashure-muted">Não foi possível carregar esta seção.</p></section>';
-                trigger_error('[dashure] ' . $e->getMessage(), E_USER_WARNING);
+                trigger_error('[dashure] ' . $key . ': ' . $e->getMessage(), E_USER_WARNING);
             }
             if ($html !== '') {
-                $sections[] = $html;
+                $tabs[$key] = [$label, $icon, $html];
             }
         }
 
@@ -75,13 +82,23 @@ class PluginDashureHome extends CommonGLPI
         }
         $out .= '</header>';
 
-        $out .= self::renderLinks();
-        $out .= '<div class="dashure-grid">';
-        $out .= '<div class="dashure-main">' . implode('', $sections) . '</div>';
-        $out .= '<aside class="dashure-side">' . self::renderNotices() . '</aside>';
-        $out .= '</div></div>';
+        $out .= '<div class="dashure-tabs" role="tablist" data-dashure-tabs>';
+        $first = true;
+        foreach ($tabs as $key => [$label, $icon]) {
+            $out .= '<button type="button" role="tab" class="dashure-tab' . ($first ? ' is-active' : '') . '"'
+                . ' aria-selected="' . ($first ? 'true' : 'false') . '" data-dashure-tab="' . self::h($key) . '">'
+                . '<i class="' . self::h($icon) . '" aria-hidden="true"></i> ' . self::h($label) . '</button>';
+            $first = false;
+        }
+        $out .= '</div>';
+        $first = true;
+        foreach ($tabs as $key => [, , $html]) {
+            $out .= '<div class="dashure-pane" role="tabpanel" data-dashure-pane="' . self::h($key) . '"' . ($first ? '' : ' hidden') . '>'
+                . $html . '</div>';
+            $first = false;
+        }
 
-        return $out;
+        return $out . '</div>';
     }
 
     private static function stat(string $label, int $value, string $tone, string $icon, string $url = ''): string
@@ -91,6 +108,87 @@ class PluginDashureHome extends CommonGLPI
         return '<' . $tag . ' class="dashure-stat is-' . self::h($tone) . ($value === 0 ? ' is-zero' : '') . '">'
             . '<i class="' . self::h($icon) . '" aria-hidden="true"></i>'
             . '<strong>' . $value . '</strong><span>' . self::h($label) . '</span></' . $close . '>';
+    }
+
+    /* -------------------------------------------------------------- Anotações */
+
+    private static function renderNotes(): string
+    {
+        $notes = PluginDashureNote::visible();
+        $formUrl = self::pluginUrl('dashure', '/front/note.form.php');
+        $ajaxUrl = self::pluginUrl('dashure', '/front/ajax.php');
+
+        $categories = [];
+        foreach ($notes as $note) {
+            if ((string) $note['category'] !== '') {
+                $categories[(string) $note['category']] = true;
+            }
+        }
+        ksort($categories, SORT_NATURAL | SORT_FLAG_CASE);
+
+        $out = '<section class="dashure-notes" data-dashure-notes data-ajax="' . self::h($ajaxUrl) . '">'
+            . '<div class="dashure-notes-bar">'
+            . '<label class="dashure-search"><i class="ti ti-search" aria-hidden="true"></i>'
+            . '<input type="search" class="form-control" placeholder="Buscar por título, categoria, login ou endereço" data-dashure-search></label>';
+        if (PluginDashureNote::canCreate()) {
+            $out .= '<a class="dashure-btn" href="' . self::h($formUrl) . '"><i class="ti ti-plus" aria-hidden="true"></i> Nova anotação</a>';
+        }
+        $out .= '</div>';
+
+        if ($categories !== []) {
+            $out .= '<div class="dashure-filter" data-dashure-filter><button type="button" class="is-active" data-category="">Todas</button>';
+            foreach (array_keys($categories) as $category) {
+                $out .= '<button type="button" data-category="' . self::h($category) . '">' . self::h($category) . '</button>';
+            }
+            $out .= '</div>';
+        }
+
+        if ($notes === []) {
+            return $out . '<p class="dashure-muted dashure-empty"><i class="ti ti-lock" aria-hidden="true"></i> Nenhuma anotação liberada para o seu perfil.</p></section>';
+        }
+
+        $out .= '<div class="dashure-note-grid">';
+        foreach ($notes as $note) {
+            $id = (int) $note['id'];
+            $url = (string) $note['url'];
+            $search = mb_strtolower(implode(' ', [$note['title'], $note['category'], $note['login'], $url]));
+            $out .= '<article class="dashure-note is-' . self::h($note['color']) . '" data-note-id="' . $id . '"'
+                . ' data-search="' . self::h($search) . '" data-category="' . self::h($note['category']) . '">'
+                . '<header><h4>' . ((int) $note['is_pinned'] === 1 ? '<i class="ti ti-pin" title="Fixada" aria-label="Fixada"></i> ' : '')
+                . self::h($note['title']) . '</h4>'
+                . ((string) $note['category'] !== '' ? '<span class="dashure-pill">' . self::h($note['category']) . '</span>' : '')
+                . '</header>';
+            if ($url !== '') {
+                $out .= '<div class="dashure-field"><span>Endereço</span>'
+                    . (preg_match('#^https?://#i', $url)
+                        ? '<a href="' . self::h($url) . '" target="_blank" rel="noopener noreferrer">' . self::h($url) . '</a>'
+                        : '<code>' . self::h($url) . '</code>')
+                    . '</div>';
+            }
+            if ((string) $note['login'] !== '') {
+                $out .= '<div class="dashure-field"><span>Login</span><code>' . self::h($note['login']) . '</code>'
+                    . '<button type="button" class="dashure-icon-btn" data-note-action="copy_login" title="Copiar login" aria-label="Copiar login"><i class="ti ti-copy"></i></button></div>';
+            }
+            if ($note['has_password']) {
+                $out .= '<div class="dashure-field"><span>Senha</span><code data-note-password>••••••••</code>'
+                    . '<button type="button" class="dashure-icon-btn" data-note-action="reveal" title="Mostrar senha" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>'
+                    . '<button type="button" class="dashure-icon-btn" data-note-action="copy" title="Copiar senha" aria-label="Copiar senha"><i class="ti ti-copy"></i></button></div>';
+            }
+            if ($note['has_notes']) {
+                $out .= '<div class="dashure-note-extra" data-note-extra hidden></div>';
+                if (!$note['has_password']) {
+                    $out .= '<button type="button" class="dashure-link-btn" data-note-action="reveal"><i class="ti ti-eye"></i> Ver observações</button>';
+                }
+            }
+            $out .= '<footer><small>Atualizada em ' . self::h(date('d/m/Y', strtotime((string) $note['date_mod']))) . '</small>';
+            if ($note['can_edit']) {
+                $out .= '<a class="dashure-icon-btn" href="' . self::h($formUrl . '?id=' . $id) . '" title="Editar" aria-label="Editar"><i class="ti ti-pencil"></i></a>';
+            }
+            $out .= '</footer></article>';
+        }
+        $out .= '</div><p class="dashure-muted" data-dashure-noresult hidden>Nenhuma anotação encontrada.</p>';
+
+        return $out . '</section>';
     }
 
     /* ------------------------------------------------------------------ Tralla */

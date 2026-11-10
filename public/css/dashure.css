@@ -201,3 +201,118 @@ a.dashure-stat:hover { border-color: var(--tone); color: var(--dashure-text); }
     .dashure-hero { padding: 16px; }
     .dashure-card { padding: 14px; }
 }
+
+/* Sub-abas do Início */
+.dashure-tabs { border-bottom: 1px solid var(--dashure-border); display: flex; flex-wrap: wrap; gap: 4px; }
+.dashure-tab {
+    align-items: center;
+    background: none;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    color: var(--dashure-muted);
+    cursor: pointer;
+    display: inline-flex;
+    font-weight: 600;
+    gap: 6px;
+    margin-bottom: -1px;
+    padding: 8px 14px;
+}
+.dashure-tab:hover { color: var(--dashure-text); }
+.dashure-tab.is-active { border-bottom-color: var(--dashure-accent); color: var(--dashure-accent); }
+.dashure-pane { display: flex; flex-direction: column; gap: 16px; }
+.dashure-pane[hidden] { display: none; }
+
+/* Anotações */
+.dashure-notes { display: flex; flex-direction: column; gap: 12px; }
+.dashure-notes-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
+.dashure-search { align-items: center; display: flex; flex: 1 1 260px; margin: 0; position: relative; }
+.dashure-search i { color: var(--dashure-muted); left: 10px; position: absolute; }
+.dashure-search input { padding-left: 32px; }
+.dashure-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.dashure-filter button {
+    background: var(--dashure-surface);
+    border: 1px solid var(--dashure-border);
+    border-radius: 999px;
+    color: var(--dashure-text);
+    cursor: pointer;
+    font-size: .82rem;
+    padding: 3px 12px;
+}
+.dashure-filter button.is-active { background: var(--dashure-accent); border-color: var(--dashure-accent); color: #fff; }
+.dashure-empty { align-items: center; display: flex; gap: 8px; padding: 24px 0; }
+
+.dashure-note-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); }
+.dashure-note {
+    --tone: #94a3b8;
+    background: var(--dashure-surface);
+    border: 1px solid var(--dashure-border);
+    border-radius: 12px;
+    border-top: 4px solid var(--tone);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+}
+.dashure-note[hidden] { display: none; }
+.dashure-note.is-blue { --tone: #2f6fb3; }
+.dashure-note.is-green { --tone: #16a34a; }
+.dashure-note.is-amber { --tone: #d97706; }
+.dashure-note.is-red { --tone: #dc2626; }
+.dashure-note.is-purple { --tone: #6e5dc6; }
+.dashure-note header { align-items: flex-start; display: flex; gap: 8px; justify-content: space-between; }
+.dashure-note h4 { font-size: 1rem; font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+.dashure-note h4 .ti-pin { color: var(--tone); }
+.dashure-field { align-items: center; display: flex; gap: 6px; min-width: 0; }
+.dashure-field > span { color: var(--dashure-muted); flex: 0 0 64px; font-size: .75rem; font-weight: 700; text-transform: uppercase; }
+.dashure-field code, .dashure-field a {
+    background: color-mix(in srgb, var(--tone) 8%, transparent);
+    border-radius: 6px;
+    color: var(--dashure-text);
+    flex: 1;
+    font-size: .85rem;
+    min-width: 0;
+    overflow: hidden;
+    padding: 3px 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.dashure-note.is-revealed [data-note-password] { overflow: visible; overflow-wrap: anywhere; white-space: normal; }
+.dashure-note-extra {
+    background: color-mix(in srgb, var(--tone) 8%, transparent);
+    border-radius: 8px;
+    font-size: .85rem;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+}
+.dashure-note-extra[hidden] { display: none; }
+.dashure-note footer { align-items: center; display: flex; gap: 6px; justify-content: space-between; margin-top: auto; }
+.dashure-note footer small { color: var(--dashure-muted); }
+.dashure-icon-btn {
+    align-items: center;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--dashure-muted);
+    cursor: pointer;
+    display: inline-flex;
+    flex-shrink: 0;
+    font-size: 1.05rem;
+    height: 28px;
+    justify-content: center;
+    text-decoration: none;
+    width: 28px;
+}
+.dashure-icon-btn:hover { border-color: var(--dashure-border); color: var(--dashure-accent); }
+.dashure-icon-btn:disabled { opacity: .5; }
+.dashure-link-btn { align-self: flex-start; background: none; border: 0; color: var(--dashure-accent); cursor: pointer; font-size: .85rem; padding: 0; }
+
+/* Formulário de anotação */
+.dashure-password-input { align-items: center; display: flex; gap: 4px; }
+.dashure-password-input input { flex: 1; }
+.dashure-profiles { border: 1px solid var(--dashure-border); border-radius: 10px; display: grid; gap: 6px 16px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); padding: 10px 14px; }
+.dashure-profiles legend { float: none; font-size: .95rem; font-weight: 700; margin: 0; padding: 0 6px; width: auto; }
+.dashure-profiles > small { grid-column: 1 / -1; }
+.dashure-form-actions { display: flex; gap: 8px; justify-content: space-between; }
+.dashure-log { display: flex; flex-direction: column; gap: 6px; list-style: none; margin: 0; max-height: 520px; overflow-y: auto; padding: 0; }
+.dashure-log li { border-bottom: 1px solid var(--dashure-border); font-size: .85rem; padding-bottom: 6px; }
+.dashure-log small { color: var(--dashure-muted); display: block; }
