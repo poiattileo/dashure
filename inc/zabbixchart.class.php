@@ -132,6 +132,16 @@ class PluginDashureZabbixChart
         $DB->delete(self::TABLE, ['id' => $id]);
     }
 
+    /** Nomes dos itens encontrados (para conferir o padrão na configuração). */
+    public static function itemLabels(array $chart, int $limit = 8): array
+    {
+        $labels = [];
+        foreach (array_slice(self::items($chart), 0, $limit) as $item) {
+            $labels[] = (string) ($item['hosts'][0]['name'] ?? '?') . ': ' . (string) $item['name'] . ' [' . (string) $item['key_'] . ']';
+        }
+        return $labels;
+    }
+
     public static function hosts(): array
     {
         $config = PluginDashureZabbix::config();
@@ -277,19 +287,38 @@ class PluginDashureZabbixChart
         }
         // "Somar as séries": uma linha só com a soma de todos os itens em cada instante.
         if ($sumAs !== '' && $series !== []) {
-            $sum = [];
+            // Cada item coleta num horário: repete o último valor de cada um (até o limite de "buraco")
+            // para a soma não ficar serrilhada.
+            $stamps = [];
             foreach ($series as $one) {
+                foreach ($one['data'] as [$ts]) {
+                    $stamps[$ts] = true;
+                }
+            }
+            ksort($stamps);
+            $stamps = array_keys($stamps);
+            $total = array_fill_keys($stamps, null);
+            foreach ($series as $one) {
+                $values = [];
                 foreach ($one['data'] as [$ts, $value]) {
-                    if ($value !== null) {
-                        $sum[$ts] = ($sum[$ts] ?? 0) + $value;
-                    } elseif (!isset($sum[$ts])) {
-                        $sum[$ts] = null;
+                    $values[$ts] = $value;
+                }
+                $last = null;
+                $lastTs = null;
+                foreach ($stamps as $ts) {
+                    if (array_key_exists($ts, $values)) {
+                        $last = $values[$ts];
+                        $lastTs = $ts;
+                    } elseif ($lastTs !== null && ($ts - $lastTs) > $gap * 1000) {
+                        $last = null;
+                    }
+                    if ($last !== null) {
+                        $total[$ts] = ($total[$ts] ?? 0) + $last;
                     }
                 }
             }
-            ksort($sum);
             $points = [];
-            foreach ($sum as $ts => $value) {
+            foreach ($total as $ts => $value) {
                 $points[] = [$ts, $value === null ? null : round($value, 4)];
             }
             $series = [[

@@ -13,8 +13,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $action = (string) ($_POST['action'] ?? '');
         if ($action === 'chart_save') {
             $chartId = PluginDashureZabbixChart::save($_POST);
-            $count = count(PluginDashureZabbixChart::items(PluginDashureZabbixChart::get($chartId)));
-            Session::addMessageAfterRedirect('Gráfico salvo: ' . $count . ' item(ns) do Zabbix encontrado(s) com esse padrão.', false, $count > 0 ? INFO : WARNING);
+            $savedChart = PluginDashureZabbixChart::get($chartId);
+            $count = count(PluginDashureZabbixChart::items($savedChart));
+            $labels = PluginDashureZabbixChart::itemLabels($savedChart);
+            Session::addMessageAfterRedirect('Gráfico salvo: ' . $count . ' item(ns) do Zabbix encontrado(s) com esse padrão.'
+                . ($labels !== [] ? '<br>• ' . implode('<br>• ', array_map('htmlspecialchars', $labels)) . ($count > count($labels) ? '<br>…' : '') : ''),
+                false, $count > 0 ? INFO : WARNING);
             Html::redirect($self . '#graficos');
         }
         if ($action === 'chart_delete') {
