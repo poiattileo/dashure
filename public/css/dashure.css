@@ -27,6 +27,8 @@
     justify-content: space-between;
     padding: 20px 24px;
 }
+.dashure-brand-logo { border-radius: 14px; box-shadow: 0 7px 20px rgba(8, 31, 69, .28); flex: 0 0 60px; height: 60px; object-fit: cover; width: 60px; }
+.dashure-hero-text { flex: 1; min-width: 180px; }
 .dashure-hero h2 { color: #fff; font-size: 1.45rem; font-weight: 700; margin: 0 0 2px; }
 .dashure-hero p { margin: 0; opacity: .85; }
 .dashure-hero .dashure-btn-ghost { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .35); color: #fff; }
@@ -199,6 +201,7 @@ a.dashure-stat:hover { border-color: var(--tone); color: var(--dashure-text); }
 }
 @media (max-width: 575px) {
     .dashure-hero { padding: 16px; }
+    .dashure-brand-logo { flex-basis: 48px; height: 48px; width: 48px; }
     .dashure-card { padding: 14px; }
 }
 

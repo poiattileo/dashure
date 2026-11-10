@@ -74,7 +74,7 @@ class PluginDashureHome extends CommonGLPI
         $today = $weekdays[(int) date('w')] . ', ' . date('j') . ' de ' . $months[(int) date('n') - 1] . ' de ' . date('Y');
 
         $out = '<div class="dashure">';
-        $out .= '<header class="dashure-hero"><div><h2>' . self::h($greeting . ', ' . $firstName) . '</h2>'
+        $out .= '<header class="dashure-hero">' . self::brandLogo() . '<div class="dashure-hero-text"><h2>' . self::h($greeting . ', ' . $firstName) . '</h2>'
             . '<p>' . self::h(ucfirst($today)) . '</p></div>';
         if (PluginDashureStore::canManage()) {
             $out .= '<a class="dashure-btn dashure-btn-ghost" href="' . self::h(self::pluginUrl('dashure', '/front/admin.php')) . '">'
@@ -99,6 +99,14 @@ class PluginDashureHome extends CommonGLPI
         }
 
         return $out . '</div>';
+    }
+
+    /** Logo do plugin (public/logo.png), com cache pela data do arquivo. */
+    public static function brandLogo(): string
+    {
+        $file = GLPI_ROOT . '/plugins/dashure/public/logo.png';
+        return '<img class="dashure-brand-logo" src="' . self::h(self::pluginUrl('dashure', '/logo.png?v=' . (int) @filemtime($file)))
+            . '" alt="" width="60" height="60">';
     }
 
     private static function stat(string $label, int $value, string $tone, string $icon, string $url = ''): string

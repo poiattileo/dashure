@@ -49,7 +49,8 @@ Html::header($note ? 'Editar anotação' : 'Nova anotação', $_SERVER['PHP_SELF
 ?>
 <div class="dashure dashure-admin">
     <header class="dashure-hero">
-        <div><h2><?= $note ? $h('Editar: ' . $note['title']) : 'Nova anotação' ?></h2>
+        <?= PluginDashureHome::brandLogo() ?>
+        <div class="dashure-hero-text"><h2><?= $note ? $h('Editar: ' . $note['title']) : 'Nova anotação' ?></h2>
             <p>A senha e as observações ficam criptografadas. Só os perfis marcados enxergam a anotação.</p></div>
         <a class="dashure-btn dashure-btn-ghost" href="<?= $h($home) ?>"><i class="ti ti-arrow-left"></i> Voltar ao Início</a>
     </header>

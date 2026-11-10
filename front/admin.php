@@ -45,7 +45,8 @@ Html::header('Início — avisos e atalhos', $_SERVER['PHP_SELF'], 'config', 'pl
 ?>
 <div class="dashure dashure-admin">
     <header class="dashure-hero">
-        <div><h2>Avisos e atalhos</h2><p>O que aparece na aba Início da página inicial.</p></div>
+        <?= PluginDashureHome::brandLogo() ?>
+        <div class="dashure-hero-text"><h2>Avisos e atalhos</h2><p>O que aparece na aba Início da página inicial.</p></div>
         <a class="dashure-btn dashure-btn-ghost" href="<?= $h($CFG_GLPI['root_doc']) ?>/front/central.php"><i class="ti ti-home"></i> Ver Início</a>
     </header>
 
