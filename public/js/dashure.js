@@ -182,6 +182,17 @@
                 },
                 xAxis: {
                     type: 'time', min: data.from, max: data.to,
+                    // Cabeçalho do tooltip em dd/mm/aaaa hh:mm (padrão BR).
+                    axisPointer: {
+                        label: {
+                            formatter: function (p) {
+                                var d = new Date(p.value);
+                                var z = function (n) { return (n < 10 ? '0' : '') + n; };
+                                return z(d.getDate()) + '/' + z(d.getMonth() + 1) + '/' + d.getFullYear()
+                                    + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+                            }
+                        }
+                    },
                     axisLabel: {
                         color: text, fontSize: 10, hideOverlap: true,
                         formatter: function (value) {
