@@ -202,7 +202,7 @@ class PluginDashureZabbixChart
     }
 
     /** Séries prontas para o ECharts: [[timestamp_ms, valor], ...] por item. */
-    public static function data(int $id, string $range): array
+    public static function data(int $id, string $range, bool $combine = false): array
     {
         global $GLPI_CACHE;
 
@@ -213,7 +213,9 @@ class PluginDashureZabbixChart
         if (!isset(self::RANGES[$range])) {
             $range = '1d';
         }
-        $cacheKey = 'plugin_dashure_zbxchart_' . $id . '_' . $range . '_' . md5((string) $chart['date_mod']);
+        $configured = (int) ($chart['aggregate'] ?? 0) === 1;
+        $combine = $combine || $configured;
+        $cacheKey = 'plugin_dashure_zbxchart_' . $id . '_' . $range . '_' . ($combine ? 'c' : 's') . '_' . md5((string) $chart['date_mod']);
         try {
             $cached = $GLPI_CACHE?->get($cacheKey);
             if (is_array($cached)) {
@@ -222,8 +224,12 @@ class PluginDashureZabbixChart
         } catch (Throwable $e) {
         }
 
+        $items = self::items($chart);
         $result = ['title' => (string) $chart['title']]
-            + self::seriesFor(self::items($chart), $range, true, [], self::MAX_SERIES, (int) ($chart['aggregate'] ?? 0) === 1 ? (string) $chart['title'] : '');
+            + self::seriesFor($items, $range, true, [], self::MAX_SERIES, $combine ? (string) $chart['title'] : '');
+        // Botão "Separado / Juntos" só faz sentido com mais de um item e quando o gráfico não é sempre somado.
+        $result['combinable'] = !$configured && count($items) > 1;
+        $result['combined'] = $combine;
         $result['total'] = self::totalFor((string) ($chart['total_text'] ?? ''), (string) $result['units']);
         $seconds = self::RANGES[$range][1];
         try {
@@ -325,6 +331,7 @@ class PluginDashureZabbixChart
             ksort($stamps);
             $stamps = array_keys($stamps);
             $total = array_fill_keys($stamps, null);
+            $counts = [];
             foreach ($series as $one) {
                 $values = [];
                 foreach ($one['data'] as [$ts, $value]) {
@@ -341,15 +348,20 @@ class PluginDashureZabbixChart
                     }
                     if ($last !== null) {
                         $total[$ts] = ($total[$ts] ?? 0) + $last;
+                        $counts[$ts] = ($counts[$ts] ?? 0) + 1;
                     }
                 }
             }
             $points = [];
+            $isPercent = (string) $series[0]['units'] === '%';
             foreach ($total as $ts => $value) {
+                if ($value !== null && $isPercent) {
+                    $value /= max(1, $counts[$ts] ?? 1);
+                }
                 $points[] = [$ts, $value === null ? null : round($value, 4)];
             }
             $series = [[
-                'name' => $sumAs . ' (' . count($series) . ' itens)', 'units' => $series[0]['units'],
+                'name' => $sumAs . ($isPercent ? ' — média de ' : ' — soma de ') . count($series) . ' itens', 'units' => $series[0]['units'],
                 'data' => $points, 'mean' => 0,
             ]];
         }

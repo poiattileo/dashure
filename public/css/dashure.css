@@ -466,3 +466,4 @@ body.dashure-modal-open { overflow: hidden; }
 .dashure-modal .dashure-range button.is-active { background: #2f6fb3; border-color: #2f6fb3; color: #fff; }
 @media (max-width: 700px) { .dashure-modal-layer { padding: 0; align-items: flex-end; } .dashure-modal { border-radius: 14px 14px 0 0; max-height: 94vh; } }
 .dashure-modal { --dashure-surface: var(--tblr-bg-surface, #fff); --dashure-border: var(--tblr-border-color, #e3e7ee); --dashure-muted: var(--tblr-secondary, #6b7280); --dashure-text: var(--tblr-body-color, #1f2937); --dashure-accent: #2f6fb3; }
+.dashure-ztools { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }

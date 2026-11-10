@@ -145,6 +145,8 @@
             body.set('action', graphId ? 'zabbix_graph' : 'zabbix_chart');
             body.set('id', graphId || fig.getAttribute('data-zabbix-chart'));
             body.set('range', range);
+            var combineKey = 'dashure.zcombine.' + fig.getAttribute('data-zabbix-chart');
+            if (!graphId) { body.set('combine', store(combineKey) === '1' ? '1' : '0'); }
             var response = await fetch(ajax, {
                 method: 'POST', body: body, credentials: 'same-origin',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -170,6 +172,28 @@
             var total = Number(data.total) || 0;
             var scaleKey = 'dashure.zscale.' + (fig.getAttribute('data-zabbix-chart') || 'g' + fig.getAttribute('data-zabbix-graph'));
             var cap = fig.querySelector('figcaption');
+            var tools = cap ? cap.querySelector('.dashure-ztools') : null;
+            if (cap && !tools) {
+                tools = document.createElement('span');
+                tools.className = 'dashure-ztools';
+                cap.appendChild(tools);
+            }
+            // Separado (uma linha por item) ou juntos (soma; em % a média).
+            var combineToggle = fig.querySelector('[data-zcombine]');
+            if (data.combinable && tools && !combineToggle) {
+                combineToggle = document.createElement('span');
+                combineToggle.className = 'dashure-zscale';
+                combineToggle.setAttribute('data-zcombine', '');
+                combineToggle.innerHTML = '<button type="button" data-zcombine-mode="0">Separado</button><button type="button" data-zcombine-mode="1"></button>';
+                combineToggle.querySelector('[data-zcombine-mode="1"]').textContent = units === '%' ? 'Média' : 'Somado';
+                tools.insertBefore(combineToggle, tools.firstChild);
+            }
+            if (combineToggle) {
+                combineToggle.querySelectorAll('[data-zcombine-mode]').forEach(function (b) {
+                    b.classList.toggle('is-active', b.getAttribute('data-zcombine-mode') === (data.combined ? '1' : '0'));
+                });
+                fig.dataset.combineKey = combineKey;
+            }
             var toggle = fig.querySelector('[data-zscale]');
             if (total > 0 && cap && !toggle) {
                 toggle = document.createElement('span');
@@ -177,7 +201,7 @@
                 toggle.setAttribute('data-zscale', '');
                 toggle.innerHTML = '<button type="button" data-zscale-mode="auto">Automática</button><button type="button" data-zscale-mode="total"></button>';
                 toggle.querySelector('[data-zscale-mode="total"]').textContent = 'Total (' + formatValue(total, units) + ')';
-                cap.appendChild(toggle);
+                tools.appendChild(toggle);
             } else if (total <= 0 && toggle) {
                 toggle.remove();
                 toggle = null;
@@ -509,6 +533,15 @@
         if (tab) {
             var key = tab.getAttribute('data-dashure-tab');
             if (activate(tab.closest('.dashure'), key)) { store(STORE_KEY, key); }
+            return;
+        }
+
+        var zc = event.target.closest('[data-zcombine-mode]');
+        if (zc) {
+            var cfig = zc.closest('[data-zabbix-chart]');
+            store(cfig.dataset.combineKey, zc.getAttribute('data-zcombine-mode'));
+            var csec = zc.closest('[data-dashure-zabbix]');
+            drawChart(cfig, csec.getAttribute('data-ajax'), store(RANGE_KEY) || '1d', csec.getAttribute('data-echarts'));
             return;
         }
 

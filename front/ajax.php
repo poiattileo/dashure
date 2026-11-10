@@ -27,7 +27,8 @@ try {
             }
             echo json_encode(['ok' => true] + PluginDashureZabbixChart::data(
                 (int) ($_POST['id'] ?? 0),
-                (string) ($_POST['range'] ?? '1d')
+                (string) ($_POST['range'] ?? '1d'),
+                (string) ($_POST['combine'] ?? '') === '1'
             ), JSON_UNESCAPED_UNICODE);
             break;
         case 'zabbix_host_graphs':
