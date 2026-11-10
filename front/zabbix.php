@@ -174,7 +174,7 @@ Html::header('Zabbix — Dashure', $_SERVER['PHP_SELF'], 'config', 'plugin');
                         <label>Ordem<input class="form-control" type="number" name="rank" value="<?= (int) ($editChart['rank'] ?? 0) ?>"></label>
                     </div>
                     <label>Padrão<input class="form-control" name="pattern" maxlength="255" required value="<?= $h($editChart['pattern'] ?? '') ?>" placeholder="system.cpu.util"></label>
-                    <label>Total <small>(opcional — habilita a escala "comparado ao total", ex.: 54 GB, 1 Gbps)</small>
+                    <label>Total <small>(escala "comparado ao total", ex.: 54 GB, 1 Gbps — só número vale GB na memória e Mbps na rede; vazio: % usa 100 e rede 1 Gbps)</small>
                         <input class="form-control" name="total_text" maxlength="50" value="<?= $h($editChart['total_text'] ?? '') ?>" placeholder="54 GB"></label>
                     <?php if ($hosts !== []): ?>
                         <fieldset class="dashure-profiles">

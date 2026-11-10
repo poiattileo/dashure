@@ -117,6 +117,32 @@ class PluginDashureZabbixChart
         return $value > 0 ? $value : null;
     }
 
+    /**
+     * Total do eixo para a escala "Total". Número sem unidade vale na unidade "natural" do gráfico
+     * (GB para memória, Mbps para rede). Sem total configurado: % usa 100 e rede usa 1 Gbps.
+     */
+    public static function totalFor(string $text, string $units): ?float
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return match ($units) {
+                '%'     => 100.0,
+                'bps'   => 1000000000.0,
+                default => null,
+            };
+        }
+        $value = self::parseTotal($text);
+        if ($value !== null && preg_match('/^\d+(?:[.,]\d+)?$/', $text)) {
+            $value *= match ($units) {
+                'B'     => 1024 ** 3,
+                'bps'   => 1000000,
+                'Bps'   => 1024 ** 2,
+                default => 1,
+            };
+        }
+        return $value;
+    }
+
     private static function validTotal(string $text): string
     {
         $text = trim($text);
@@ -196,8 +222,9 @@ class PluginDashureZabbixChart
         } catch (Throwable $e) {
         }
 
-        $result = ['title' => (string) $chart['title'], 'total' => self::parseTotal((string) ($chart['total_text'] ?? ''))]
+        $result = ['title' => (string) $chart['title']]
             + self::seriesFor(self::items($chart), $range, true, [], self::MAX_SERIES, (int) ($chart['aggregate'] ?? 0) === 1 ? (string) $chart['title'] : '');
+        $result['total'] = self::totalFor((string) ($chart['total_text'] ?? ''), (string) $result['units']);
         $seconds = self::RANGES[$range][1];
         try {
             $GLPI_CACHE?->set($cacheKey, $result, $seconds <= 86400 ? 60 : 600);
