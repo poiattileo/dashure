@@ -33,14 +33,14 @@ if ($id > 0) {
     try {
         $note = PluginDashureNote::getVisible($id);
     } catch (Throwable $e) {
-        throw new GlpixceptionHttpAccessDeniedHttpException();
+        throw new \Glpi\Exception\Http\AccessDeniedHttpException();
     }
     if (!PluginDashureNote::canEditRow($note)) {
-        throw new GlpixceptionHttpAccessDeniedHttpException();
+        throw new \Glpi\Exception\Http\AccessDeniedHttpException();
     }
     $profiles = PluginDashureNote::profileIds($id);
 } elseif (!PluginDashureNote::canCreate()) {
-    throw new GlpixceptionHttpAccessDeniedHttpException();
+    throw new \Glpi\Exception\Http\AccessDeniedHttpException();
 }
 $hasPassword = $note !== null && (string) $note['password_encrypted'] !== '';
 $notesText = $note !== null ? PluginDashureNote::decrypt((string) $note['notes_encrypted']) : '';
