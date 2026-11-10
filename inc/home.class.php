@@ -49,8 +49,8 @@ class PluginDashureHome extends CommonGLPI
 
         // Sub-abas: [chave, título, ícone, renderizador]. As vazias (sem acesso) não aparecem.
         $definitions = [
-            ['notes', 'Anotações', 'ti ti-lock', static fn (): string => PluginDashureNote::canView() ? self::renderNotes() : ''],
             ['zabbix', 'Zabbix', 'ti ti-activity-heartbeat', static fn (): string => PluginDashureZabbix::canView() ? PluginDashureZabbix::renderShell() : ''],
+            ['notes', 'Anotações', 'ti ti-lock', static fn (): string => PluginDashureNote::canView() ? self::renderNotes() : ''],
             ['tralla', 'Tralla', 'ti ti-layout-kanban', static fn (): string => self::renderTralla($userId)],
             ['assignature', 'Assignat-ure', 'ti ti-signature', static fn (): string => self::renderAssignature($userId)],
             ['notices', 'Avisos e atalhos', 'ti ti-speakerphone', static fn (): string => self::renderLinks() . self::renderNotices()],
