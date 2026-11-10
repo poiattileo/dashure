@@ -1,0 +1,203 @@
+/* [URE] Dashure — aba Início */
+
+/* A aba "Início" vem antes das abas do GLPI na página inicial. */
+#tabspanel > .nav-item:has(> a[href*="forcetab=PluginDashureHome"]) { order: -1; }
+
+.dashure {
+    --dashure-surface: var(--tblr-bg-surface, #fff);
+    --dashure-border: var(--tblr-border-color, #e3e7ee);
+    --dashure-muted: var(--tblr-secondary, #6b7280);
+    --dashure-text: var(--tblr-body-color, #1f2937);
+    --dashure-accent: #2f6fb3;
+    color: var(--dashure-text);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 4px 2px 12px;
+}
+
+.dashure-hero {
+    align-items: center;
+    background: linear-gradient(120deg, #1e4f86 0%, #2f6fb3 55%, #3f8ec9 100%);
+    border-radius: 14px;
+    color: #fff;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 20px 24px;
+}
+.dashure-hero h2 { color: #fff; font-size: 1.45rem; font-weight: 700; margin: 0 0 2px; }
+.dashure-hero p { margin: 0; opacity: .85; }
+.dashure-hero .dashure-btn-ghost { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .35); color: #fff; }
+.dashure-hero .dashure-btn-ghost:hover { background: rgba(255, 255, 255, .26); color: #fff; }
+
+.dashure-links { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.dashure-links a {
+    align-items: center;
+    background: var(--dashure-surface);
+    border: 1px solid var(--dashure-border);
+    border-radius: 12px;
+    color: var(--dashure-text);
+    display: flex;
+    gap: 10px;
+    font-weight: 600;
+    padding: 12px 14px;
+    text-decoration: none;
+    transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+.dashure-links a i { color: var(--dashure-accent); font-size: 1.35rem; }
+.dashure-links a:hover { border-color: var(--dashure-accent); box-shadow: 0 4px 14px rgba(47, 111, 179, .14); transform: translateY(-1px); }
+
+.dashure-grid { align-items: start; display: grid; gap: 16px; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); }
+.dashure-main, .dashure-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.dashure-card {
+    background: var(--dashure-surface);
+    border: 1px solid var(--dashure-border);
+    border-radius: 14px;
+    padding: 16px 18px;
+}
+.dashure-card-head { align-items: center; display: flex; gap: 8px; justify-content: space-between; margin-bottom: 12px; }
+.dashure-card-head h3 { align-items: center; display: flex; font-size: 1.05rem; font-weight: 700; gap: 8px; margin: 0; }
+.dashure-card-head h3 i { color: var(--dashure-accent); font-size: 1.3rem; }
+.dashure-card-head a { font-size: .85rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.dashure-subtitle { color: var(--dashure-muted); font-size: .78rem; font-weight: 700; letter-spacing: .04em; margin: 16px 0 8px; text-transform: uppercase; }
+.dashure-muted { color: var(--dashure-muted); margin: 0; }
+
+.dashure-stats { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); }
+.dashure-stat {
+    --tone: #64748b;
+    background: color-mix(in srgb, var(--tone) 10%, var(--dashure-surface));
+    border: 1px solid color-mix(in srgb, var(--tone) 28%, transparent);
+    border-radius: 12px;
+    color: var(--dashure-text);
+    display: grid;
+    gap: 0 8px;
+    grid-template-columns: auto 1fr;
+    padding: 10px 12px;
+    text-decoration: none;
+}
+.dashure-stat i { color: var(--tone); font-size: 1.25rem; grid-row: span 2; align-self: center; }
+.dashure-stat strong { color: var(--tone); font-size: 1.55rem; line-height: 1.1; }
+.dashure-stat span { color: var(--dashure-muted); font-size: .8rem; font-weight: 600; }
+a.dashure-stat:hover { border-color: var(--tone); color: var(--dashure-text); }
+.dashure-stat.is-zero { opacity: .6; }
+.dashure-stat.is-blue { --tone: #2f6fb3; }
+.dashure-stat.is-amber { --tone: #d97706; }
+.dashure-stat.is-green { --tone: #16a34a; }
+.dashure-stat.is-red { --tone: #dc2626; }
+.dashure-stat.is-purple { --tone: #6e5dc6; }
+
+.dashure-alert {
+    background: color-mix(in srgb, #d97706 10%, var(--dashure-surface));
+    border: 1px solid color-mix(in srgb, #d97706 35%, transparent);
+    border-radius: 12px;
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 10px 14px;
+}
+.dashure-alert > i { color: #d97706; font-size: 1.4rem; }
+.dashure-alert ul { margin: 4px 0 0; padding-left: 18px; }
+
+.dashure-list { display: flex; flex-direction: column; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.dashure-list a, .dashure-list-row {
+    align-items: center;
+    border: 1px solid var(--dashure-border);
+    border-radius: 10px;
+    color: var(--dashure-text);
+    display: flex;
+    gap: 10px;
+    padding: 8px 12px;
+    text-decoration: none;
+}
+.dashure-list a:hover { border-color: var(--dashure-accent); color: var(--dashure-text); }
+.dashure-list-main { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.dashure-list-main strong, .dashure-list-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashure-list-main small { color: var(--dashure-muted); }
+
+.dashure-pill {
+    --tone: #64748b;
+    align-items: center;
+    background: color-mix(in srgb, var(--tone) 14%, transparent);
+    border-radius: 999px;
+    color: var(--tone);
+    display: inline-flex;
+    flex-shrink: 0;
+    font-size: .75rem;
+    font-weight: 700;
+    gap: 4px;
+    padding: 2px 9px;
+}
+.dashure-pill.is-blue, .dashure-pill.is-info { --tone: #2f6fb3; }
+.dashure-pill.is-amber, .dashure-pill.is-warning { --tone: #d97706; }
+.dashure-pill.is-success { --tone: #16a34a; }
+.dashure-pill.is-danger { --tone: #dc2626; }
+.dashure-pill.is-purple { --tone: #6e5dc6; }
+
+.dashure-chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 12px 0 0; padding: 0; }
+.dashure-chips a {
+    border: 1px solid var(--dashure-border);
+    border-radius: 999px;
+    color: var(--dashure-text);
+    font-size: .82rem;
+    padding: 3px 10px;
+    text-decoration: none;
+}
+.dashure-chips b { color: #d97706; margin-left: 4px; }
+
+.dashure-notice {
+    --tone: #2f6fb3;
+    border-left: 4px solid var(--tone);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--tone) 8%, var(--dashure-surface));
+    margin-bottom: 10px;
+    padding: 10px 12px;
+}
+.dashure-notice:last-child { margin-bottom: 0; }
+.dashure-notice.is-success { --tone: #16a34a; }
+.dashure-notice.is-warning { --tone: #d97706; }
+.dashure-notice.is-danger { --tone: #dc2626; }
+.dashure-notice header { align-items: center; display: flex; gap: 8px; }
+.dashure-notice header > i:first-child { color: var(--tone); font-size: 1.15rem; }
+.dashure-notice header strong { flex: 1; }
+.dashure-pin { color: var(--dashure-muted); }
+.dashure-notice p { margin: 6px 0 0; white-space: normal; }
+.dashure-notice footer { color: var(--dashure-muted); font-size: .75rem; margin-top: 6px; }
+
+.dashure-btn {
+    align-items: center;
+    background: var(--dashure-accent);
+    border: 1px solid var(--dashure-accent);
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    font-weight: 600;
+    gap: 6px;
+    padding: 6px 12px;
+    text-decoration: none;
+}
+.dashure-btn:hover { color: #fff; filter: brightness(1.08); }
+.dashure-btn-ghost { background: transparent; color: var(--dashure-accent); }
+.dashure-btn-ghost:hover { background: color-mix(in srgb, var(--dashure-accent) 10%, transparent); color: var(--dashure-accent); }
+.dashure-btn-danger { background: transparent; border-color: #dc2626; color: #dc2626; }
+.dashure-btn-danger:hover { background: #dc2626; color: #fff; }
+
+.dashure-form { display: flex; flex-direction: column; gap: 10px; }
+.dashure-form label { display: flex; flex-direction: column; font-weight: 600; gap: 4px; }
+.dashure-form-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.dashure-form-row > label { flex: 1 1 160px; }
+.dashure-form .dashure-check { align-items: center; flex-direction: row; font-weight: 500; }
+.dashure-actions { align-items: center; display: inline-flex; gap: 6px; justify-content: flex-end; }
+.dashure-actions form { margin: 0; }
+.dashure-table td { vertical-align: middle; }
+
+@media (max-width: 991px) {
+    .dashure-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 575px) {
+    .dashure-hero { padding: 16px; }
+    .dashure-card { padding: 14px; }
+}
