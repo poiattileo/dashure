@@ -15,6 +15,7 @@ class PluginDashureZabbixChart
     /** Períodos: chave => [rótulo, segundos]. Até 2 dias usa histórico; acima, tendências (média por hora). */
     public const RANGES = [
         '1h'  => ['1 hora', 3600],
+        '6h'  => ['6 horas', 21600],
         '12h' => ['12 horas', 43200],
         '1d'  => ['1 dia', 86400],
         '7d'  => ['7 dias', 604800],

@@ -348,7 +348,7 @@
             rangeBox.appendChild(copy);
         });
         if (!rangeBox.children.length) {
-            [['1h', '1 hora'], ['12h', '12 horas'], ['1d', '1 dia'], ['7d', '7 dias'], ['30d', '30 dias']].forEach(function (r) {
+            [['1h', '1 hora'], ['6h', '6 horas'], ['12h', '12 horas'], ['1d', '1 dia'], ['7d', '7 dias'], ['30d', '30 dias']].forEach(function (r) {
                 var c = document.createElement('button');
                 c.type = 'button'; c.textContent = r[1]; c.setAttribute('data-zmodal-range', r[0]);
                 rangeBox.appendChild(c);
