@@ -132,7 +132,7 @@ Html::header('Zabbix — Dashure', $_SERVER['PHP_SELF'], 'config', 'plugin');
                             <?php $ids = array_filter(array_map('intval', explode(',', (string) $c['hostids']))); ?>
                             <tr>
                                 <td><?= (int) $c['rank'] ?></td>
-                                <td><?= $h($c['title']) ?></td>
+                                <td><?= $h($c['title']) ?><?= (string) ($c['total_text'] ?? '') !== '' ? ' <small class="dashure-muted">(total ' . $h($c['total_text']) . ')</small>' : '' ?><?= (int) ($c['aggregate'] ?? 0) === 1 ? ' <small class="dashure-muted">· somado</small>' : '' ?></td>
                                 <td><small><?= $h(PluginDashureZabbixChart::FIELDS[$c['match_field']] ?? $c['match_field']) ?>:</small> <code><?= $h($c['pattern']) ?></code></td>
                                 <td><?= $ids === [] ? 'Todos' : $h(implode(', ', array_map(static fn ($i) => $hosts[$i] ?? ('#' . $i), $ids))) ?></td>
                                 <td><?= (int) $c['is_active'] === 1 ? 'Ativo' : 'Inativo' ?></td>
@@ -170,6 +170,8 @@ Html::header('Zabbix — Dashure', $_SERVER['PHP_SELF'], 'config', 'plugin');
                         <label>Ordem<input class="form-control" type="number" name="rank" value="<?= (int) ($editChart['rank'] ?? 0) ?>"></label>
                     </div>
                     <label>Padrão<input class="form-control" name="pattern" maxlength="255" required value="<?= $h($editChart['pattern'] ?? '') ?>" placeholder="system.cpu.util"></label>
+                    <label>Total <small>(opcional — habilita a escala "comparado ao total", ex.: 54 GB, 1 Gbps)</small>
+                        <input class="form-control" name="total_text" maxlength="50" value="<?= $h($editChart['total_text'] ?? '') ?>" placeholder="54 GB"></label>
                     <?php if ($hosts !== []): ?>
                         <fieldset class="dashure-profiles">
                             <legend>Hosts <small>(nenhum = todos)</small></legend>
@@ -178,6 +180,7 @@ Html::header('Zabbix — Dashure', $_SERVER['PHP_SELF'], 'config', 'plugin');
                             <?php endforeach; ?>
                         </fieldset>
                     <?php endif; ?>
+                    <label class="dashure-check"><input type="checkbox" name="aggregate" value="1"<?= (int) ($editChart['aggregate'] ?? 0) === 1 ? ' checked' : '' ?>> Somar as séries (uma linha com o total de todos os itens)</label>
                     <label class="dashure-check"><input type="checkbox" name="is_active" value="1"<?= (int) ($editChart['is_active'] ?? 1) === 1 ? ' checked' : '' ?>> Ativo</label>
                     <div><button class="dashure-btn" type="submit"><i class="ti ti-device-floppy"></i> Salvar gráfico</button></div>
                 </form>

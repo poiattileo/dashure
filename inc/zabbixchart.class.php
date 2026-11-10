@@ -84,6 +84,8 @@ class PluginDashureZabbixChart
             'hostids'     => implode(',', $hostids),
             'is_active'   => !empty($input['is_active']) ? 1 : 0,
             'rank'        => (int) ($input['rank'] ?? 0),
+            'total_text'  => self::validTotal((string) ($input['total_text'] ?? '')),
+            'aggregate'   => !empty($input['aggregate']) ? 1 : 0,
             'date_mod'    => date('Y-m-d H:i:s'),
         ];
         $id = (int) ($input['id'] ?? 0);
@@ -97,6 +99,31 @@ class PluginDashureZabbixChart
             $id = (int) $DB->insertId();
         }
         return $id;
+    }
+
+    /** "54 GB", "1 Gbps", "100 %", "512" → valor na unidade base do item (B usa 1024; bps, 1000). */
+    public static function parseTotal(string $text): ?float
+    {
+        $text = trim(str_replace(',', '.', $text));
+        if ($text === '' || !preg_match('/^(\d+(?:\.\d+)?)\s*([kmgtp]?)(i?)(b|bps|b\/s|%)?$/i', $text, $m)) {
+            return null;
+        }
+        $value = (float) $m[1];
+        $prefix = strtolower($m[2]);
+        if ($prefix !== '') {
+            $base = (isset($m[4]) && stripos($m[4], 'bps') !== false) ? 1000 : 1024;
+            $value *= $base ** (strpos('kmgtp', $prefix) + 1);
+        }
+        return $value > 0 ? $value : null;
+    }
+
+    private static function validTotal(string $text): string
+    {
+        $text = trim($text);
+        if ($text !== '' && self::parseTotal($text) === null) {
+            throw new RuntimeException('Total inválido. Use algo como 54 GB, 1 Gbps ou 100 %.');
+        }
+        return mb_substr($text, 0, 50);
     }
 
     public static function delete(int $id): void
@@ -159,7 +186,8 @@ class PluginDashureZabbixChart
         } catch (Throwable $e) {
         }
 
-        $result = ['title' => (string) $chart['title']] + self::seriesFor(self::items($chart), $range, true);
+        $result = ['title' => (string) $chart['title'], 'total' => self::parseTotal((string) ($chart['total_text'] ?? ''))]
+            + self::seriesFor(self::items($chart), $range, true, [], self::MAX_SERIES, (int) ($chart['aggregate'] ?? 0) === 1 ? (string) $chart['title'] : '');
         $seconds = self::RANGES[$range][1];
         try {
             $GLPI_CACHE?->set($cacheKey, $result, $seconds <= 86400 ? 60 : 600);
@@ -172,7 +200,7 @@ class PluginDashureZabbixChart
      * Busca histórico (até 2 dias) ou tendências (acima) dos itens e devolve as séries reduzidas.
      * $colors: itemid => cor (gráficos do próprio Zabbix).
      */
-    public static function seriesFor(array $items, string $range, bool $withHost, array $colors = [], int $maxSeries = self::MAX_SERIES): array
+    public static function seriesFor(array $items, string $range, bool $withHost, array $colors = [], int $maxSeries = self::MAX_SERIES, string $sumAs = ''): array
     {
         $config = PluginDashureZabbix::config();
         if (!isset(self::RANGES[$range])) {
@@ -246,6 +274,28 @@ class PluginDashureZabbixChart
                 $entry['color'] = $colors[(string) $item['itemid']];
             }
             $series[] = $entry;
+        }
+        // "Somar as séries": uma linha só com a soma de todos os itens em cada instante.
+        if ($sumAs !== '' && $series !== []) {
+            $sum = [];
+            foreach ($series as $one) {
+                foreach ($one['data'] as [$ts, $value]) {
+                    if ($value !== null) {
+                        $sum[$ts] = ($sum[$ts] ?? 0) + $value;
+                    } elseif (!isset($sum[$ts])) {
+                        $sum[$ts] = null;
+                    }
+                }
+            }
+            ksort($sum);
+            $points = [];
+            foreach ($sum as $ts => $value) {
+                $points[] = [$ts, $value === null ? null : round($value, 4)];
+            }
+            $series = [[
+                'name' => $sumAs . ' (' . count($series) . ' itens)', 'units' => $series[0]['units'],
+                'data' => $points, 'mean' => 0,
+            ]];
         }
         // Muitas séries poluem o gráfico: fica com as de maior média.
         usort($series, static fn ($x, $y) => $y['mean'] <=> $x['mean']);

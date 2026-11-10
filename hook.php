@@ -113,6 +113,20 @@ function plugin_dashure_install(): bool
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
         PluginDashureZabbixChart::installDefaults();
     }
+    // 1.4.0: "somar as séries" (uma linha com o total de todos os itens) + gráfico de memória total.
+    if (!$DB->fieldExists('glpi_plugin_dashure_zabbix_charts', 'aggregate')) {
+        $DB->doQuery("ALTER TABLE `glpi_plugin_dashure_zabbix_charts` ADD `aggregate` TINYINT(1) NOT NULL DEFAULT 0 AFTER `hostids`") or die($DB->error());
+        if (!countElementsInTable('glpi_plugin_dashure_zabbix_charts', ['title' => 'Memória RAM total'])) {
+            $DB->insert('glpi_plugin_dashure_zabbix_charts', [
+                'title' => 'Memória RAM total', 'match_field' => 'name', 'pattern' => '*Memory used*',
+                'hostids' => '', 'aggregate' => 1, 'is_active' => 1, 'rank' => 45, 'date_mod' => date('Y-m-d H:i:s'),
+            ]);
+        }
+    }
+    // 1.4.0: total opcional do gráfico (ex.: "54 GB") para a escala "comparado ao total".
+    if (!$DB->fieldExists('glpi_plugin_dashure_zabbix_charts', 'total_text')) {
+        $DB->doQuery("ALTER TABLE `glpi_plugin_dashure_zabbix_charts` ADD `total_text` VARCHAR(50) NOT NULL DEFAULT '' AFTER `hostids`") or die($DB->error());
+    }
 
     PluginDashureProfile::install();
 

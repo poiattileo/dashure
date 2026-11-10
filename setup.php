@@ -4,7 +4,7 @@
  * por perfil), resumo do Tralla e do Assignat-ure, avisos e atalhos.
  */
 
-define('PLUGIN_DASHURE_VERSION', '1.3.0');
+define('PLUGIN_DASHURE_VERSION', '1.4.0');
 define('PLUGIN_DASHURE_MIN_GLPI', '12.0.0');
 define('PLUGIN_DASHURE_MAX_GLPI', '12.0.99');
 

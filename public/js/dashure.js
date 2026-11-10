@@ -166,6 +166,29 @@
             var grid = cssVar('--tblr-border-color', '#e2e8f0');
             var units = data.units || '';
             var stacked = units === 'B';
+            // Escala: automática (acompanha o pico) ou comparada ao total configurado no gráfico.
+            var total = Number(data.total) || 0;
+            var scaleKey = 'dashure.zscale.' + (fig.getAttribute('data-zabbix-chart') || 'g' + fig.getAttribute('data-zabbix-graph'));
+            var cap = fig.querySelector('figcaption');
+            var toggle = fig.querySelector('[data-zscale]');
+            if (total > 0 && cap && !toggle) {
+                toggle = document.createElement('span');
+                toggle.className = 'dashure-zscale';
+                toggle.setAttribute('data-zscale', '');
+                toggle.innerHTML = '<button type="button" data-zscale-mode="auto">Automática</button><button type="button" data-zscale-mode="total"></button>';
+                toggle.querySelector('[data-zscale-mode="total"]').textContent = 'Total (' + formatValue(total, units) + ')';
+                cap.appendChild(toggle);
+            } else if (total <= 0 && toggle) {
+                toggle.remove();
+                toggle = null;
+            }
+            var scaleMode = total > 0 && store(scaleKey) === 'total' ? 'total' : 'auto';
+            if (toggle) {
+                toggle.querySelectorAll('[data-zscale-mode]').forEach(function (b) {
+                    b.classList.toggle('is-active', b.getAttribute('data-zscale-mode') === scaleMode);
+                });
+                fig.dataset.scaleKey = scaleKey;
+            }
             chart.setOption({
                 color: PALETTE,
                 animation: false,
@@ -208,12 +231,18 @@
                     axisLine: { lineStyle: { color: grid } }, splitLine: { show: false }
                 },
                 yAxis: {
-                    type: 'value', min: 0,
+                    type: 'value', min: 0, max: scaleMode === 'total' ? total : null,
                     axisLabel: { color: text, fontSize: 10, formatter: function (v) { return formatValue(v, units); } },
                     splitLine: { lineStyle: { color: grid, type: 'dashed' } }
                 },
-                series: data.series.map(function (s) {
+                series: data.series.map(function (s, index) {
                     return {
+                        markLine: scaleMode === 'total' && index === 0 ? {
+                            silent: true, symbol: 'none',
+                            lineStyle: { color: '#dc2626', type: 'dashed', width: 1.2 },
+                            label: { formatter: 'Total ' + formatValue(total, units), color: '#dc2626', fontSize: 10, position: 'insideEndTop' },
+                            data: [{ yAxis: total }]
+                        } : undefined,
                         itemStyle: s.color ? { color: s.color } : undefined,
                         name: s.name, type: 'line', data: s.data, showSymbol: false, smooth: false, connectNulls: false,
                         stack: stacked ? 'total' : undefined, lineStyle: { width: 1.4 },
@@ -480,6 +509,15 @@
         if (tab) {
             var key = tab.getAttribute('data-dashure-tab');
             if (activate(tab.closest('.dashure'), key)) { store(STORE_KEY, key); }
+            return;
+        }
+
+        var zs = event.target.closest('[data-zscale-mode]');
+        if (zs) {
+            var zfig = zs.closest('[data-zabbix-chart], [data-zabbix-graph]');
+            store(zfig.dataset.scaleKey, zs.getAttribute('data-zscale-mode'));
+            var zsection = zs.closest('[data-dashure-zabbix]');
+            drawChart(zfig, zsection.getAttribute('data-ajax'), store(RANGE_KEY) || '1d', zsection.getAttribute('data-echarts'));
             return;
         }
 
