@@ -30,6 +30,21 @@ try {
                 (string) ($_POST['range'] ?? '1d')
             ), JSON_UNESCAPED_UNICODE);
             break;
+        case 'zabbix_host_graphs':
+        case 'zabbix_graph':
+            if (!PluginDashureZabbix::canView()) {
+                http_response_code(403);
+                throw new RuntimeException('Sem permissão.');
+            }
+            $zid = preg_replace('/\D/', '', (string) ($_POST['id'] ?? ''));
+            if ($zid === '') {
+                throw new RuntimeException('Identificador inválido.');
+            }
+            $payload = $_POST['action'] === 'zabbix_host_graphs'
+                ? PluginDashureZabbixChart::hostGraphs($zid)
+                : PluginDashureZabbixChart::graphData($zid, (string) ($_POST['range'] ?? '1d'));
+            echo json_encode(['ok' => true] + $payload, JSON_UNESCAPED_UNICODE);
+            break;
         case 'note_secret':
             if (!PluginDashureNote::canView()) {
                 http_response_code(403);

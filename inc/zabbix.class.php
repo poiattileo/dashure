@@ -188,7 +188,7 @@ class PluginDashureZabbix
         $config = self::config();
         try {
             $cached = $GLPI_CACHE?->get(self::cacheKey());
-            if (is_array($cached)) {
+            if (is_array($cached) && isset($cached['hosts'])) {
                 return $cached;
             }
         } catch (Throwable $e) {
@@ -199,7 +199,8 @@ class PluginDashureZabbix
         $min = (int) $config['min_severity'];
 
         $problems = (array) self::rpc($config, 'problem.get', $groupFilter + [
-            'output'     => ['eventid', 'objectid', 'name', 'severity', 'clock', 'acknowledged', 'suppressed'],
+            'output'     => ['eventid', 'objectid', 'name', 'severity', 'clock', 'acknowledged', 'opdata'],
+            'selectTags' => ['tag', 'value'],
             'source'     => 0,
             'object'     => 0,
             'suppressed' => false,
@@ -214,10 +215,12 @@ class PluginDashureZabbix
         $triggerIds = array_values(array_unique(array_column($problems, 'objectid')));
         if ($triggerIds !== []) {
             foreach ((array) self::rpc($config, 'trigger.get', [
-                'output' => ['triggerid'], 'triggerids' => $triggerIds, 'monitored' => true,
+                'output' => ['triggerid', 'comments'], 'triggerids' => $triggerIds, 'monitored' => true,
                 'selectHosts' => ['hostid', 'name'],
             ]) as $trigger) {
-                $hostsByTrigger[(string) $trigger['triggerid']] = $trigger['hosts'][0] ?? null;
+                if (isset($trigger['hosts'][0])) {
+                    $hostsByTrigger[(string) $trigger['triggerid']] = $trigger['hosts'][0] + ['comments' => (string) ($trigger['comments'] ?? '')];
+                }
             }
         }
 
@@ -230,6 +233,10 @@ class PluginDashureZabbix
             }
             $severity = (int) $problem['severity'];
             $counts[$severity]++;
+            $tags = [];
+            foreach ((array) ($problem['tags'] ?? []) as $tag) {
+                $tags[] = (string) $tag['tag'] . ((string) ($tag['value'] ?? '') !== '' ? ': ' . $tag['value'] : '');
+            }
             $list[] = [
                 'eventid'  => (string) $problem['eventid'],
                 'hostid'   => (string) $host['hostid'],
@@ -238,35 +245,114 @@ class PluginDashureZabbix
                 'severity' => $severity,
                 'clock'    => (int) $problem['clock'],
                 'ack'      => (int) $problem['acknowledged'] === 1,
+                'opdata'   => (string) ($problem['opdata'] ?? ''),
+                'comments' => mb_substr(trim((string) $host['comments']), 0, 400),
+                'tags'     => array_slice($tags, 0, 8),
             ];
         }
         usort($list, static fn ($a, $b) => [$b['severity'], $b['clock']] <=> [$a['severity'], $a['clock']]);
 
-        // Disponibilidade dos hosts (interfaces com available = 2 → indisponível).
-        $hosts = (array) self::rpc($config, 'host.get', $groupFilter + [
-            'output' => ['hostid', 'name'], 'monitored_hosts' => true,
-            'selectInterfaces' => ['available', 'type'],
+        // Hosts com interfaces, grupos, modelos e inventário básico.
+        $rawHosts = (array) self::rpc($config, 'host.get', $groupFilter + [
+            'output'                => ['hostid', 'host', 'name', 'status', 'maintenance_status', 'description'],
+            'monitored_hosts'       => true,
+            'selectInterfaces'      => ['type', 'ip', 'dns', 'useip', 'port', 'available', 'error', 'main'],
+            'selectHostGroups'      => ['name'],
+            'selectParentTemplates' => ['name'],
+            'selectInventory'       => ['os', 'hardware', 'location'],
         ]);
-        $down = [];
-        foreach ($hosts as $host) {
-            $interfaces = (array) ($host['interfaces'] ?? []);
-            if ($interfaces === []) {
-                continue;
+
+        // Últimos valores dos itens mais úteis (modelos Linux/Windows padrão do Zabbix).
+        $metricKeys = [
+            'system.cpu.util' => 'cpu', 'system.cpu.util[,,avg1]' => 'cpu',
+            'vm.memory.utilization' => 'mem', 'vm.memory.util' => 'mem',
+            'system.uptime' => 'uptime', 'system.sw.os' => 'os', 'system.sw.os[name]' => 'os',
+            'agent.version' => 'agent', 'icmppingsec' => 'ping', 'system.cpu.num' => 'cpus',
+            'vm.memory.size[total]' => 'memtotal',
+        ];
+        $metrics = [];
+        $hostIds = array_column($rawHosts, 'hostid');
+        if ($hostIds !== []) {
+            foreach ((array) self::rpc($config, 'item.get', [
+                'output' => ['hostid', 'key_', 'lastvalue', 'lastclock', 'units'], 'hostids' => $hostIds,
+                'filter' => ['key_' => array_keys($metricKeys)], 'monitored' => true,
+            ]) as $item) {
+                if ((int) $item['lastclock'] > 0) {
+                    $metrics[(string) $item['hostid']][$metricKeys[(string) $item['key_']]] = [(string) $item['lastvalue'], (string) $item['units']];
+                }
             }
-            $bad = array_filter($interfaces, static fn ($i) => (int) ($i['available'] ?? 0) === 2);
-            if (count($bad) === count($interfaces)) {
-                $down[] = ['hostid' => (string) $host['hostid'], 'name' => (string) $host['name']];
+            foreach ((array) self::rpc($config, 'item.get', [
+                'output' => ['hostid', 'key_', 'lastvalue', 'lastclock'], 'hostids' => $hostIds, 'monitored' => true,
+                'search' => ['key_' => ['vfs.fs.dependent.size[*,pused]', 'vfs.fs.size[*,pused]']],
+                'searchWildcardsEnabled' => true, 'searchByAny' => true,
+            ]) as $item) {
+                if ((int) $item['lastclock'] > 0 && preg_match('/\[([^,\]]+),pused\]/', (string) $item['key_'], $m)) {
+                    $metrics[(string) $item['hostid']]['fs'][trim($m[1], '"')] = (float) $item['lastvalue'];
+                }
             }
         }
+
+        $problemsByHost = [];
+        foreach ($list as $problem) {
+            $problemsByHost[$problem['hostid']][] = $problem;
+        }
+
+        $typeNames = [1 => 'Agente', 2 => 'SNMP', 3 => 'IPMI', 4 => 'JMX'];
+        $hosts = [];
+        $down = [];
+        foreach ($rawHosts as $host) {
+            $hostid = (string) $host['hostid'];
+            $interfaces = [];
+            $unavailable = 0;
+            foreach ((array) ($host['interfaces'] ?? []) as $if) {
+                $available = (int) ($if['available'] ?? 0);
+                $unavailable += $available === 2 ? 1 : 0;
+                $interfaces[] = [
+                    'type'      => $typeNames[(int) $if['type']] ?? 'Interface',
+                    'address'   => ((int) $if['useip'] === 1 ? (string) $if['ip'] : (string) $if['dns']) . ':' . (string) $if['port'],
+                    'available' => $available,
+                    'error'     => mb_substr((string) ($if['error'] ?? ''), 0, 200),
+                ];
+            }
+            $isDown = $interfaces !== [] && $unavailable === count($interfaces);
+            $hostProblems = $problemsByHost[$hostid] ?? [];
+            $state = $isDown ? 'down' : ($hostProblems !== [] ? 'problem' : 'ok');
+            $worst = $hostProblems !== [] ? max(array_column($hostProblems, 'severity')) : -1;
+            $inventory = is_array($host['inventory'] ?? null) ? $host['inventory'] : [];
+            $entry = [
+                'hostid'      => $hostid,
+                'name'        => (string) $host['name'],
+                'technical'   => (string) $host['host'],
+                'state'       => $state,
+                'worst'       => $worst,
+                'maintenance' => (int) ($host['maintenance_status'] ?? 0) === 1,
+                'description' => mb_substr(trim((string) ($host['description'] ?? '')), 0, 300),
+                'interfaces'  => $interfaces,
+                'groups'      => array_column((array) ($host['hostgroups'] ?? []), 'name'),
+                'templates'   => array_column((array) ($host['parentTemplates'] ?? []), 'name'),
+                'os'          => trim((string) ($inventory['os'] ?? '')),
+                'location'    => trim((string) ($inventory['location'] ?? '')),
+                'metrics'     => $metrics[$hostid] ?? [],
+                'problems'    => $hostProblems,
+            ];
+            $hosts[] = $entry;
+            if ($isDown) {
+                $down[] = ['hostid' => $hostid, 'name' => (string) $host['name']];
+            }
+        }
+        $stateOrder = ['down' => 0, 'problem' => 1, 'ok' => 2];
+        usort($hosts, static fn ($a, $b) => [$stateOrder[$a['state']], -$a['worst'], strtolower($a['name'])]
+            <=> [$stateOrder[$b['state']], -$b['worst'], strtolower($b['name'])]);
         usort($down, static fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
 
         $summary = [
             'counts'      => $counts,
             'problems'    => array_slice($list, 0, (int) $config['max_problems']),
             'total'       => count($list),
+            'hosts'       => $hosts,
             'hosts_total' => count($hosts),
             'hosts_down'  => $down,
-            'hosts_with_problems' => count(array_unique(array_column($list, 'hostid'))),
+            'hosts_with_problems' => count(array_filter($hosts, static fn ($h) => $h['state'] === 'problem')),
             'fetched_at'  => time(),
         ];
         try {
@@ -316,6 +402,134 @@ class PluginDashureZabbix
         return PluginDashureHome::pluginUrlPublic('/front/zabbix.php');
     }
 
+    private static function formatUptime(int $seconds): string
+    {
+        $d = intdiv($seconds, 86400);
+        $h = intdiv($seconds % 86400, 3600);
+        $m = intdiv($seconds % 3600, 60);
+        return $d > 0 ? $d . ' d ' . $h . ' h' : ($h > 0 ? $h . ' h ' . $m . ' min' : $m . ' min');
+    }
+
+    private static function problemItem(array $p, string $base, bool $showHost = true): string
+    {
+        $h = [PluginDashureHome::class, 'h'];
+        [$label, $color] = self::SEVERITIES[$p['severity']];
+        $extra = '';
+        if ($p['opdata'] !== '') {
+            $extra .= '<span class="dashure-zp-op"><i class="ti ti-gauge"></i> ' . $h($p['opdata']) . '</span>';
+        }
+        foreach ($p['tags'] as $tag) {
+            $extra .= '<span class="dashure-zp-tag">' . $h($tag) . '</span>';
+        }
+        return '<li data-severity="' . (int) $p['severity'] . '"><a href="' . $h($base . '/zabbix.php?action=problem.view&filter_set=1&hostids%5B%5D=' . rawurlencode($p['hostid'])) . '" target="_blank" rel="noopener noreferrer" style="--tone:' . $h($color) . '">'
+            . '<span class="dashure-pill dashure-sev-pill">' . $h($label) . '</span>'
+            . '<span class="dashure-list-main"><strong>' . $h($p['name']) . '</strong>'
+            . ($showHost ? '<small>' . $h($p['host']) . '</small>' : '')
+            . ($extra !== '' ? '<span class="dashure-zp-extra">' . $extra . '</span>' : '')
+            . ($p['comments'] !== '' ? '<small class="dashure-zp-desc">' . $h($p['comments']) . '</small>' : '')
+            . '</span>'
+            . '<span class="dashure-problem-age">' . ($p['ack'] ? '<span class="dashure-zp-ack"><i class="ti ti-check"></i> Reconhecido</span> ' : '')
+            . 'há ' . $h(self::ago($p['clock'])) . '</span></a></li>';
+    }
+
+    private static function hostCard(array $host, string $base): string
+    {
+        $h = [PluginDashureHome::class, 'h'];
+        $states = ['ok' => ['Sem problemas', 'is-green'], 'problem' => ['Com problemas', 'is-amber'], 'down' => ['Indisponível', 'is-red']];
+        [$stateLabel, $stateTone] = $states[$host['state']];
+        $hid = rawurlencode($host['hostid']);
+
+        $out = '<article class="dashure-zhost is-' . $h($host['state']) . '" data-host-state="' . $h($host['state']) . '">'
+            . '<header><span class="dashure-zhost-dot ' . $h($stateTone) . '"></span>'
+            . '<div class="dashure-zhost-title"><h4>' . $h($host['name']) . '</h4>'
+            . ($host['technical'] !== $host['name'] ? '<small>' . $h($host['technical']) . '</small>' : '') . '</div>'
+            . '<span class="dashure-pill ' . $h($stateTone) . '">' . $h($stateLabel) . '</span>'
+            . ($host['maintenance'] ? '<span class="dashure-pill is-blue"><i class="ti ti-tool"></i> Manutenção</span>' : '')
+            . '</header>';
+
+        // Métricas
+        $m = $host['metrics'];
+        $chips = [];
+        if (isset($m['cpu'])) {
+            $chips[] = ['ti ti-cpu', 'CPU', number_format((float) $m['cpu'][0], 1, ',', '.') . ' %', (float) $m['cpu'][0]];
+        }
+        if (isset($m['mem'])) {
+            $chips[] = ['ti ti-database', 'Memória', number_format((float) $m['mem'][0], 1, ',', '.') . ' %', (float) $m['mem'][0]];
+        }
+        foreach (array_slice($m['fs'] ?? [], 0, 3, true) as $fs => $pct) {
+            $chips[] = ['ti ti-server-2', 'Disco ' . $fs, number_format($pct, 1, ',', '.') . ' %', $pct];
+        }
+        if (isset($m['uptime'])) {
+            $chips[] = ['ti ti-clock-up', 'Ligado há', self::formatUptime((int) $m['uptime'][0]), null];
+        }
+        if (isset($m['ping'])) {
+            $chips[] = ['ti ti-wave-sine', 'Ping', number_format((float) $m['ping'][0] * 1000, 1, ',', '.') . ' ms', null];
+        }
+        if (isset($m['cpus'])) {
+            $chips[] = ['ti ti-cpu-2', 'Núcleos', (string) (int) $m['cpus'][0], null];
+        }
+        if (isset($m['memtotal'])) {
+            $chips[] = ['ti ti-stack-2', 'RAM total', number_format((float) $m['memtotal'][0] / 1073741824, 1, ',', '.') . ' GB', null];
+        }
+        if ($chips !== []) {
+            $out .= '<div class="dashure-zmetrics">';
+            foreach ($chips as [$icon, $label, $value, $pct]) {
+                $tone = $pct === null ? '' : ($pct >= 90 ? ' is-red' : ($pct >= 75 ? ' is-amber' : ' is-green'));
+                $out .= '<div class="dashure-zmetric' . $tone . '"><i class="' . $h($icon) . '"></i><span>' . $h($label) . '</span><strong>' . $h($value) . '</strong>'
+                    . ($pct !== null ? '<em style="width:' . max(2, min(100, (int) round($pct))) . '%"></em>' : '') . '</div>';
+            }
+            $out .= '</div>';
+        }
+
+        // Detalhes
+        $out .= '<dl class="dashure-zinfo">';
+        $os = $host['os'] !== '' ? $host['os'] : (string) ($m['os'][0] ?? '');
+        if ($os !== '') {
+            $out .= '<dt>Sistema</dt><dd>' . $h(mb_substr($os, 0, 160)) . '</dd>';
+        }
+        if ($host['interfaces'] !== []) {
+            $out .= '<dt>Interfaces</dt><dd>';
+            foreach ($host['interfaces'] as $if) {
+                $avail = [0 => ['desconhecido', 'is-gray'], 1 => ['disponível', 'is-green'], 2 => ['indisponível', 'is-red']][$if['available']] ?? ['desconhecido', 'is-gray'];
+                $out .= '<span class="dashure-zif"><span class="dashure-zhost-dot ' . $avail[1] . '"></span>' . $h($if['type']) . ' <code>' . $h($if['address']) . '</code> <small>' . $h($avail[0]) . '</small>'
+                    . ($if['error'] !== '' ? '<small class="dashure-zif-err">' . $h($if['error']) . '</small>' : '') . '</span>';
+            }
+            $out .= '</dd>';
+        }
+        if ($host['groups'] !== []) {
+            $out .= '<dt>Grupos</dt><dd>' . $h(implode(', ', $host['groups'])) . '</dd>';
+        }
+        if ($host['templates'] !== []) {
+            $out .= '<dt>Modelos</dt><dd>' . $h(implode(', ', $host['templates'])) . '</dd>';
+        }
+        if (isset($m['agent'])) {
+            $out .= '<dt>Agente</dt><dd>Zabbix ' . $h($m['agent'][0]) . '</dd>';
+        }
+        if ($host['location'] !== '') {
+            $out .= '<dt>Local</dt><dd>' . $h($host['location']) . '</dd>';
+        }
+        if ($host['description'] !== '') {
+            $out .= '<dt>Descrição</dt><dd>' . $h($host['description']) . '</dd>';
+        }
+        $out .= '</dl>';
+
+        if ($host['problems'] !== []) {
+            $out .= '<h5 class="dashure-subtitle">Problemas (' . count($host['problems']) . ')</h5><ul class="dashure-list dashure-problems">';
+            foreach ($host['problems'] as $p) {
+                $out .= self::problemItem($p, $base, false);
+            }
+            $out .= '</ul>';
+        }
+
+        $out .= '<footer>'
+            . '<button type="button" class="dashure-btn dashure-zhost-graphs" data-zhost-graphs="' . $h($host['hostid']) . '" data-zhost-name="' . $h($host['name']) . '"><i class="ti ti-chart-histogram"></i> Ver gráficos</button>'
+            . '<a href="' . $h($base . '/zabbix.php?action=latest.view&filter_set=1&hostids%5B%5D=' . $hid) . '" target="_blank" rel="noopener noreferrer"><i class="ti ti-list-details"></i> Dados recentes</a>'
+            . '<a href="' . $h($base . '/zabbix.php?action=charts.view&filter_set=1&filter_hostids%5B%5D=' . $hid) . '" target="_blank" rel="noopener noreferrer"><i class="ti ti-chart-line"></i> Gráficos</a>'
+            . '<a href="' . $h($base . '/zabbix.php?action=problem.view&filter_set=1&hostids%5B%5D=' . $hid) . '" target="_blank" rel="noopener noreferrer"><i class="ti ti-alert-triangle"></i> Problemas</a>'
+            . '</footer></article>';
+        return $out;
+    }
+
     public static function renderPanel(): string
     {
         $h = [PluginDashureHome::class, 'h'];
@@ -332,51 +546,52 @@ class PluginDashureZabbix
         }
         $out .= '</span></div>';
 
+        // Contadores clicáveis: filtram os detalhes logo abaixo.
         $out .= '<div class="dashure-stats dashure-sev">';
         for ($s = 5; $s >= (int) $config['min_severity']; $s--) {
             [$label, $color] = self::SEVERITIES[$s];
-            $out .= '<a class="dashure-stat' . ($data['counts'][$s] === 0 ? ' is-zero' : '') . '" style="--tone:' . $h($color) . '"'
-                . ' href="' . $h($problemsUrl . '&severities%5B' . $s . '%5D=' . $s) . '" target="_blank" rel="noopener noreferrer">'
-                . '<i class="ti ti-alert-triangle" aria-hidden="true"></i><strong>' . (int) $data['counts'][$s] . '</strong><span>' . $h($label) . '</span></a>';
+            $out .= '<button type="button" class="dashure-stat' . ($data['counts'][$s] === 0 ? ' is-zero' : '') . '" style="--tone:' . $h($color) . '"'
+                . ' data-zfilter="sev:' . $s . '" aria-pressed="false">'
+                . '<i class="ti ti-alert-triangle" aria-hidden="true"></i><strong>' . (int) $data['counts'][$s] . '</strong><span>' . $h($label) . '</span></button>';
         }
         $out .= '</div>';
 
-        $okHosts = max(0, (int) $data['hosts_total'] - (int) $data['hosts_with_problems']);
-        $out .= '<div class="dashure-stats">'
-            . '<div class="dashure-stat is-blue"><i class="ti ti-server"></i><strong>' . (int) $data['hosts_total'] . '</strong><span>Hosts monitorados</span></div>'
-            . '<div class="dashure-stat is-green' . ($okHosts === 0 ? ' is-zero' : '') . '"><i class="ti ti-circle-check"></i><strong>' . $okHosts . '</strong><span>Sem problemas</span></div>'
-            . '<div class="dashure-stat is-amber' . ($data['hosts_with_problems'] === 0 ? ' is-zero' : '') . '"><i class="ti ti-alert-circle"></i><strong>' . (int) $data['hosts_with_problems'] . '</strong><span>Com problemas</span></div>'
-            . '<div class="dashure-stat is-red' . ($data['hosts_down'] === [] ? ' is-zero' : '') . '"><i class="ti ti-plug-connected-x"></i><strong>' . count($data['hosts_down']) . '</strong><span>Indisponíveis</span></div>'
-            . '</div>';
+        $okHosts = count(array_filter($data['hosts'], static fn ($x) => $x['state'] === 'ok'));
+        $hostStats = [
+            ['all', 'is-blue', 'ti ti-server', (int) $data['hosts_total'], 'Hosts monitorados'],
+            ['ok', 'is-green', 'ti ti-circle-check', $okHosts, 'Sem problemas'],
+            ['problem', 'is-amber', 'ti ti-alert-circle', (int) $data['hosts_with_problems'], 'Com problemas'],
+            ['down', 'is-red', 'ti ti-plug-connected-x', count($data['hosts_down']), 'Indisponíveis'],
+        ];
+        $out .= '<div class="dashure-stats">';
+        foreach ($hostStats as [$key, $tone, $icon, $value, $label]) {
+            $out .= '<button type="button" class="dashure-stat ' . $tone . ($value === 0 ? ' is-zero' : '') . '" data-zfilter="host:' . $key . '" aria-pressed="false">'
+                . '<i class="' . $icon . '"></i><strong>' . $value . '</strong><span>' . $h($label) . '</span></button>';
+        }
+        $out .= '</div>';
 
-        $out .= '<div class="dashure-grid">';
-        $out .= '<div class="dashure-main"><h4 class="dashure-subtitle">Problemas ativos (' . (int) $data['total'] . ')</h4>';
+        // Visão de problemas (padrão)
+        $out .= '<div class="dashure-zview" data-zview="problems">'
+            . '<h4 class="dashure-subtitle" data-zview-title>Problemas ativos (' . (int) $data['total'] . ')</h4>';
         if ($data['problems'] === []) {
             $out .= '<p class="dashure-muted"><i class="ti ti-mood-smile"></i> Nenhum problema ativo.</p>';
         } else {
             $out .= '<ul class="dashure-list dashure-problems">';
             foreach ($data['problems'] as $p) {
-                [$label, $color] = self::SEVERITIES[$p['severity']];
-                $out .= '<li><a href="' . $h($base . '/zabbix.php?action=problem.view&filter_set=1&hostids%5B%5D=' . rawurlencode($p['hostid'])) . '" target="_blank" rel="noopener noreferrer" style="--tone:' . $h($color) . '">'
-                    . '<span class="dashure-pill dashure-sev-pill">' . $h($label) . '</span>'
-                    . '<span class="dashure-list-main"><strong>' . $h($p['name']) . '</strong><small>' . $h($p['host']) . '</small></span>'
-                    . '<span class="dashure-problem-age">' . ($p['ack'] ? '<i class="ti ti-check" title="Reconhecido" aria-label="Reconhecido"></i> ' : '')
-                    . $h(self::ago($p['clock'])) . '</span></a></li>';
+                $out .= self::problemItem($p, $base);
             }
-            $out .= '</ul>';
+            $out .= '</ul><p class="dashure-muted" data-zview-empty hidden>Nenhum problema com essa gravidade.</p>';
         }
-        $out .= '</div><aside class="dashure-side"><h4 class="dashure-subtitle">Hosts indisponíveis (' . count($data['hosts_down']) . ')</h4>';
-        if ($data['hosts_down'] === []) {
-            $out .= '<p class="dashure-muted">Todos os hosts respondendo.</p>';
-        } else {
-            $out .= '<ul class="dashure-chips dashure-down">';
-            foreach (array_slice($data['hosts_down'], 0, 60) as $host) {
-                $out .= '<li><a href="' . $h($base . '/zabbix.php?action=host.view&filter_set=1&filter_name=' . rawurlencode($host['name'])) . '" target="_blank" rel="noopener noreferrer">'
-                    . '<i class="ti ti-point-filled"></i> ' . $h($host['name']) . '</a></li>';
-            }
-            $out .= '</ul>';
+        $out .= '</div>';
+
+        // Visão de hosts (ao clicar nos contadores de hosts)
+        $out .= '<div class="dashure-zview" data-zview="hosts" hidden>'
+            . '<h4 class="dashure-subtitle" data-zview-title>Hosts</h4><div class="dashure-zhost-grid">';
+        foreach ($data['hosts'] as $host) {
+            $out .= self::hostCard($host, $base);
         }
-        $out .= '</aside></div>';
+        $out .= '</div><p class="dashure-muted" data-zview-empty hidden>Nenhum host nessa situação.</p></div>';
+        $out .= '<p class="dashure-muted dashure-zhint"><i class="ti ti-hand-click"></i> Clique nos contadores para ver os detalhes. Clique de novo para voltar.</p>';
 
         return '<div class="dashure-card">' . $out . '</div>';
     }

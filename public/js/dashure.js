@@ -57,6 +57,7 @@
             var data = await response.json().catch(function () { return {}; });
             if (!response.ok || !data.ok) { throw new Error(data.error || 'Falha ao consultar o Zabbix.'); }
             (section.querySelector('[data-zabbix-summary]') || section).innerHTML = data.html;
+            applyZFilter(section, section.dataset.zfilter || '');
         } catch (error) {
             var p = document.createElement('p');
             p.className = 'dashure-muted dashure-zabbix-error';
@@ -140,8 +141,9 @@
         var canvas = fig.querySelector('[data-chart-canvas]');
         try {
             var body = new FormData();
-            body.set('action', 'zabbix_chart');
-            body.set('id', fig.getAttribute('data-zabbix-chart'));
+            var graphId = fig.getAttribute('data-zabbix-graph');
+            body.set('action', graphId ? 'zabbix_graph' : 'zabbix_chart');
+            body.set('id', graphId || fig.getAttribute('data-zabbix-chart'));
             body.set('range', range);
             var response = await fetch(ajax, {
                 method: 'POST', body: body, credentials: 'same-origin',
@@ -212,6 +214,7 @@
                 },
                 series: data.series.map(function (s) {
                     return {
+                        itemStyle: s.color ? { color: s.color } : undefined,
                         name: s.name, type: 'line', data: s.data, showSymbol: false, smooth: false, connectNulls: false,
                         stack: stacked ? 'total' : undefined, lineStyle: { width: 1.4 },
                         areaStyle: { opacity: stacked ? 0.55 : 0.12 }, sampling: 'lttb'
@@ -223,6 +226,150 @@
         } catch (error) {
             msg.textContent = error.message;
             msg.hidden = false;
+        }
+    }
+
+    /* Contadores do Zabbix: "sev:N" filtra os problemas; "host:estado" mostra os cartões dos hosts. */
+    function applyZFilter(section, filter) {
+        section.dataset.zfilter = filter;
+        var summary = section.querySelector('[data-zabbix-summary]');
+        if (!summary) { return; }
+        summary.querySelectorAll('[data-zfilter]').forEach(function (b) {
+            var on = b.getAttribute('data-zfilter') === filter;
+            b.classList.toggle('is-selected', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        var problems = summary.querySelector('[data-zview="problems"]');
+        var hosts = summary.querySelector('[data-zview="hosts"]');
+        if (!problems || !hosts) { return; }
+        var parts = filter.split(':');
+        var showHosts = parts[0] === 'host';
+        problems.hidden = showHosts;
+        hosts.hidden = !showHosts;
+        var shown = 0;
+        if (showHosts) {
+            var titles = { all: 'Todos os hosts', ok: 'Hosts sem problemas', problem: 'Hosts com problemas', down: 'Hosts indisponíveis' };
+            hosts.querySelectorAll('[data-host-state]').forEach(function (card) {
+                var ok = parts[1] === 'all' || card.getAttribute('data-host-state') === parts[1];
+                card.hidden = !ok;
+                if (ok) { shown++; }
+            });
+            hosts.querySelector('[data-zview-title]').textContent = (titles[parts[1]] || 'Hosts') + ' (' + shown + ')';
+            hosts.querySelector('[data-zview-empty]').hidden = shown !== 0;
+        } else {
+            var list = problems.querySelectorAll('.dashure-problems > li');
+            list.forEach(function (li) {
+                var ok = parts[0] !== 'sev' || li.getAttribute('data-severity') === parts[1];
+                li.hidden = !ok;
+                if (ok) { shown++; }
+            });
+            var empty = problems.querySelector('[data-zview-empty]');
+            if (empty) { empty.hidden = shown !== 0 || !list.length; }
+            var title = problems.querySelector('[data-zview-title]');
+            var btn = filter ? summary.querySelector('[data-zfilter="' + filter + '"] span') : null;
+            title.textContent = btn ? 'Problemas — ' + btn.textContent + ' (' + shown + ')' : 'Problemas ativos (' + list.length + ')';
+        }
+    }
+
+    /* Janela com todos os gráficos do host (os mesmos configurados no Zabbix). */
+    async function openHostGraphs(button) {
+        var section = button.closest('[data-dashure-zabbix]');
+        var ajax = section.getAttribute('data-ajax');
+        var src = section.getAttribute('data-echarts');
+        var layer = document.createElement('div');
+        layer.className = 'dashure-modal-layer';
+        layer.innerHTML = '<div class="dashure-modal-backdrop" data-zmodal-close></div>'
+            + '<div class="dashure-modal" role="dialog" aria-modal="true" aria-labelledby="dashure-zmodal-title">'
+            + '<header class="dashure-modal-head"><div><h3 id="dashure-zmodal-title"><i class="ti ti-chart-histogram"></i> </h3>'
+            + '<p class="dashure-muted">Gráficos do Zabbix para este host</p></div>'
+            + '<div class="dashure-range" role="group" aria-label="Período"></div>'
+            + '<button type="button" class="dashure-icon-btn" data-zmodal-close aria-label="Fechar"><i class="ti ti-x"></i></button></header>'
+            + '<div class="dashure-modal-body"><p class="dashure-muted"><i class="ti ti-loader-2 dashure-spin"></i> Carregando gráficos…</p></div></div>';
+        layer.querySelector('h3').appendChild(document.createTextNode(button.getAttribute('data-zhost-name') || 'Host'));
+        var rangeBox = layer.querySelector('.dashure-range');
+        section.querySelectorAll('[data-zabbix-charts] [data-zabbix-range]').forEach(function (b) {
+            var copy = document.createElement('button');
+            copy.type = 'button';
+            copy.textContent = b.textContent;
+            copy.setAttribute('data-zmodal-range', b.getAttribute('data-zabbix-range'));
+            rangeBox.appendChild(copy);
+        });
+        if (!rangeBox.children.length) {
+            [['1h', '1 hora'], ['12h', '12 horas'], ['1d', '1 dia'], ['7d', '7 dias'], ['30d', '30 dias']].forEach(function (r) {
+                var c = document.createElement('button');
+                c.type = 'button'; c.textContent = r[1]; c.setAttribute('data-zmodal-range', r[0]);
+                rangeBox.appendChild(c);
+            });
+        }
+        document.body.appendChild(layer);
+        document.body.classList.add('dashure-modal-open');
+        var body = layer.querySelector('.dashure-modal-body');
+
+        function close() {
+            document.removeEventListener('keydown', onKey, true);
+            if (window.echarts) {
+                layer.querySelectorAll('[data-chart-canvas]').forEach(function (el) {
+                    var c = window.echarts.getInstanceByDom(el);
+                    if (c) { c.dispose(); }
+                });
+            }
+            layer.remove();
+            document.body.classList.remove('dashure-modal-open');
+            button.focus();
+        }
+        function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); close(); } }
+        document.addEventListener('keydown', onKey, true);
+        layer.addEventListener('click', function (e) {
+            if (e.target.closest('[data-zmodal-close]')) { close(); return; }
+            var r = e.target.closest('[data-zmodal-range]');
+            if (r) { store(RANGE_KEY, r.getAttribute('data-zmodal-range')); draw(); }
+        });
+
+        function draw() {
+            var range = store(RANGE_KEY) || '1d';
+            rangeBox.querySelectorAll('[data-zmodal-range]').forEach(function (b) {
+                b.classList.toggle('is-active', b.getAttribute('data-zmodal-range') === range);
+            });
+            layer.querySelectorAll('[data-zabbix-graph]').forEach(function (fig) {
+                var m = fig.querySelector('[data-chart-msg]');
+                m.textContent = 'Carregando…';
+                m.hidden = false;
+                drawChart(fig, ajax, range, src);
+            });
+        }
+
+        try {
+            var form = new FormData();
+            form.set('action', 'zabbix_host_graphs');
+            form.set('id', button.getAttribute('data-zhost-graphs'));
+            var response = await fetch(ajax, { method: 'POST', body: form, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            var data = await response.json().catch(function () { return {}; });
+            if (!response.ok || !data.ok) { throw new Error(data.error || 'Falha ao listar os gráficos.'); }
+            if (!data.graphs || !data.graphs.length) {
+                body.innerHTML = '<p class="dashure-muted">Este host não tem gráficos configurados no Zabbix.</p>';
+                return;
+            }
+            var grid = document.createElement('div');
+            grid.className = 'dashure-zchart-grid';
+            data.graphs.forEach(function (g) {
+                var fig = document.createElement('figure');
+                fig.className = 'dashure-zchart';
+                fig.setAttribute('data-zabbix-graph', g.id);
+                var cap = document.createElement('figcaption');
+                cap.textContent = g.name;
+                fig.appendChild(cap);
+                fig.insertAdjacentHTML('beforeend', '<div class="dashure-zchart-canvas" data-chart-canvas></div><p class="dashure-muted dashure-zchart-msg" data-chart-msg>Carregando…</p>');
+                grid.appendChild(fig);
+            });
+            body.innerHTML = '';
+            body.appendChild(grid);
+            draw();
+        } catch (error) {
+            body.innerHTML = '';
+            var p = document.createElement('p');
+            p.className = 'dashure-muted';
+            p.textContent = error.message;
+            body.appendChild(p);
         }
     }
 
@@ -333,6 +480,20 @@
         if (tab) {
             var key = tab.getAttribute('data-dashure-tab');
             if (activate(tab.closest('.dashure'), key)) { store(STORE_KEY, key); }
+            return;
+        }
+
+        var zg = event.target.closest('[data-zhost-graphs]');
+        if (zg) {
+            openHostGraphs(zg);
+            return;
+        }
+
+        var zf = event.target.closest('[data-zfilter]');
+        if (zf) {
+            var zsec = zf.closest('[data-dashure-zabbix]');
+            var value = zf.getAttribute('data-zfilter');
+            applyZFilter(zsec, zsec.dataset.zfilter === value ? '' : value);
             return;
         }
 

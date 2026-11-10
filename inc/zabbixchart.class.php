@@ -159,10 +159,27 @@ class PluginDashureZabbixChart
         } catch (Throwable $e) {
         }
 
+        $result = ['title' => (string) $chart['title']] + self::seriesFor(self::items($chart), $range, true);
+        $seconds = self::RANGES[$range][1];
+        try {
+            $GLPI_CACHE?->set($cacheKey, $result, $seconds <= 86400 ? 60 : 600);
+        } catch (Throwable $e) {
+        }
+        return $result;
+    }
+
+    /**
+     * Busca histórico (até 2 dias) ou tendências (acima) dos itens e devolve as séries reduzidas.
+     * $colors: itemid => cor (gráficos do próprio Zabbix).
+     */
+    public static function seriesFor(array $items, string $range, bool $withHost, array $colors = [], int $maxSeries = self::MAX_SERIES): array
+    {
         $config = PluginDashureZabbix::config();
+        if (!isset(self::RANGES[$range])) {
+            $range = '1d';
+        }
         $seconds = self::RANGES[$range][1];
         $from = time() - $seconds;
-        $items = self::items($chart);
 
         $byItem = [];
         if ($items !== []) {
@@ -191,13 +208,14 @@ class PluginDashureZabbixChart
 
         $series = [];
         $bucket = max(1, (int) ceil($seconds / self::MAX_POINTS));
+        // Buraco nos dados (host desligado, sem coleta): quebra a linha em vez de ligar os pontos.
+        $gap = max(3 * $bucket, $seconds > 2 * 86400 ? 3 * 3600 : 900);
         foreach ($items as $item) {
             $points = $byItem[(string) $item['itemid']] ?? [];
             if ($points === []) {
                 continue;
             }
-            usort($points, static fn ($a, $b) => $a[0] <=> $b[0]);
-            // Reduz para ~MAX_POINTS pontos (média por intervalo).
+            usort($points, static fn ($x, $y) => $x[0] <=> $y[0]);
             $buckets = [];
             foreach ($points as [$clock, $value]) {
                 $key = intdiv($clock, $bucket);
@@ -206,8 +224,6 @@ class PluginDashureZabbixChart
             }
             $data = [];
             $sum = 0.0;
-            // Buraco nos dados (host desligado, sem coleta): quebra a linha em vez de ligar os pontos.
-            $gap = max(3 * $bucket, $seconds > 2 * 86400 ? 3 * 3600 : 900);
             $previous = null;
             foreach ($buckets as $key => [$total, $count]) {
                 $clock = $key * $bucket;
@@ -219,34 +235,91 @@ class PluginDashureZabbixChart
                 $sum += $avg;
                 $previous = $clock;
             }
-            $host = (string) ($item['hosts'][0]['name'] ?? '');
-            $series[] = [
+            $host = $withHost ? (string) ($item['hosts'][0]['name'] ?? '') : '';
+            $entry = [
                 'name'  => ($host !== '' ? $host . ': ' : '') . (string) $item['name'],
                 'units' => (string) $item['units'],
                 'data'  => $data,
                 'mean'  => $sum / max(1, count($data)),
             ];
+            if (isset($colors[(string) $item['itemid']])) {
+                $entry['color'] = $colors[(string) $item['itemid']];
+            }
+            $series[] = $entry;
         }
         // Muitas séries poluem o gráfico: fica com as de maior média.
-        usort($series, static fn ($a, $b) => $b['mean'] <=> $a['mean']);
-        $truncated = count($series) > self::MAX_SERIES;
-        $series = array_slice($series, 0, self::MAX_SERIES);
-        usort($series, static fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
-        foreach ($series as &$s) {
-            unset($s['mean']);
+        usort($series, static fn ($x, $y) => $y['mean'] <=> $x['mean']);
+        $truncated = count($series) > $maxSeries;
+        $series = array_slice($series, 0, $maxSeries);
+        usort($series, static fn ($x, $y) => strnatcasecmp($x['name'], $y['name']));
+        foreach ($series as &$one) {
+            unset($one['mean']);
         }
-        unset($s);
+        unset($one);
 
-        $result = [
-            'title'     => (string) $chart['title'],
+        return [
             'units'     => (string) ($series[0]['units'] ?? ''),
             'series'    => $series,
             'truncated' => $truncated,
             'from'      => $from * 1000,
             'to'        => time() * 1000,
         ];
+    }
+
+    /** Gráficos configurados no Zabbix para o host (CPU, memória, discos, interfaces…). */
+    public static function hostGraphs(string $hostid): array
+    {
+        $config = PluginDashureZabbix::config();
+        $host = (array) PluginDashureZabbix::rpc($config, 'host.get', [
+            'output' => ['hostid', 'name'], 'hostids' => [$hostid],
+        ]);
+        if ($host === []) {
+            throw new RuntimeException('Host não encontrado no Zabbix.');
+        }
+        $graphs = [];
+        foreach ((array) PluginDashureZabbix::rpc($config, 'graph.get', [
+            'output' => ['graphid', 'name'], 'hostids' => [$hostid], 'sortfield' => 'name',
+        ]) as $graph) {
+            $graphs[] = ['id' => (string) $graph['graphid'], 'name' => (string) $graph['name']];
+        }
+        return ['host' => (string) $host[0]['name'], 'graphs' => $graphs];
+    }
+
+    /** Dados de um gráfico do Zabbix (com as cores definidas nele). */
+    public static function graphData(string $graphid, string $range): array
+    {
+        global $GLPI_CACHE;
+
+        if (!isset(self::RANGES[$range])) {
+            $range = '1d';
+        }
+        $cacheKey = 'plugin_dashure_zbxgraph_' . preg_replace('/\D/', '', $graphid) . '_' . $range;
         try {
-            $GLPI_CACHE?->set($cacheKey, $result, $seconds <= 86400 ? 60 : 600);
+            $cached = $GLPI_CACHE?->get($cacheKey);
+            if (is_array($cached)) {
+                return $cached;
+            }
+        } catch (Throwable $e) {
+        }
+        $config = PluginDashureZabbix::config();
+        $graph = (array) PluginDashureZabbix::rpc($config, 'graph.get', [
+            'output' => ['graphid', 'name'], 'graphids' => [$graphid],
+            'selectGraphItems' => ['itemid', 'color'],
+        ]);
+        if ($graph === []) {
+            throw new RuntimeException('Gráfico não encontrado no Zabbix.');
+        }
+        $colors = [];
+        foreach ((array) $graph[0]['gitems'] as $gitem) {
+            $colors[(string) $gitem['itemid']] = '#' . ltrim((string) $gitem['color'], '#');
+        }
+        $items = $colors === [] ? [] : (array) PluginDashureZabbix::rpc($config, 'item.get', [
+            'output' => ['itemid', 'name', 'units', 'value_type'], 'itemids' => array_keys($colors),
+            'filter' => ['value_type' => [0, 3]],
+        ]);
+        $result = ['title' => (string) $graph[0]['name']] + self::seriesFor($items, $range, false, $colors, 20);
+        try {
+            $GLPI_CACHE?->set($cacheKey, $result, self::RANGES[$range][1] <= 86400 ? 60 : 600);
         } catch (Throwable $e) {
         }
         return $result;
