@@ -4,7 +4,7 @@
  * por perfil), resumo do Tralla e do Assignat-ure, avisos e atalhos.
  */
 
-define('PLUGIN_DASHURE_VERSION', '1.1.0');
+define('PLUGIN_DASHURE_VERSION', '1.2.0');
 define('PLUGIN_DASHURE_MIN_GLPI', '12.0.0');
 define('PLUGIN_DASHURE_MAX_GLPI', '12.0.99');
 
@@ -22,6 +22,7 @@ function plugin_init_dashure(): void
     $PLUGIN_HOOKS['secured_fields']['dashure'] = [
         'glpi_plugin_dashure_notes.password_encrypted',
         'glpi_plugin_dashure_notes.notes_encrypted',
+        'glpi_plugin_dashure_zabbix.token_encrypted',
     ];
 
     if (Session::haveRight('plugin_dashure', UPDATE)) {

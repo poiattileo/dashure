@@ -8,12 +8,23 @@ try {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
         throw new RuntimeException('Método inválido.');
     }
-    if (!Session::getLoginUserID() || !PluginDashureNote::canView()) {
+    if (!Session::getLoginUserID()) {
         http_response_code(403);
-        throw new RuntimeException('Sem permissão.');
+        throw new RuntimeException('Sessão expirada.');
     }
     switch ((string) ($_POST['action'] ?? '')) {
+        case 'zabbix_panel':
+            if (!PluginDashureZabbix::canView()) {
+                http_response_code(403);
+                throw new RuntimeException('Sem permissão.');
+            }
+            echo json_encode(['ok' => true, 'html' => PluginDashureZabbix::renderPanel()], JSON_UNESCAPED_UNICODE);
+            break;
         case 'note_secret':
+            if (!PluginDashureNote::canView()) {
+                http_response_code(403);
+                throw new RuntimeException('Sem permissão.');
+            }
             $data = PluginDashureNote::reveal((int) ($_POST['id'] ?? 0), (string) ($_POST['mode'] ?? ''));
             echo json_encode(['ok' => true] + $data, JSON_UNESCAPED_UNICODE);
             break;

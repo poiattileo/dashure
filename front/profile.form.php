@@ -7,12 +7,15 @@ $profileId = (int) ($_POST['profiles_id'] ?? 0);
 if ($profileId > 0 && isset($_POST['update'])) {
     $home = (int) ($_POST['home_rights'] ?? 0);
     $notes = (int) ($_POST['notes_rights'] ?? 0);
-    if (!isset(PluginDashureProfile::HOME_OPTIONS[$home]) || !isset(PluginDashureProfile::NOTES_OPTIONS[$notes])) {
+    $zabbix = (int) ($_POST['zabbix_rights'] ?? 0);
+    if (!isset(PluginDashureProfile::HOME_OPTIONS[$home]) || !isset(PluginDashureProfile::NOTES_OPTIONS[$notes])
+        || !isset(PluginDashureProfile::ZABBIX_OPTIONS[$zabbix])) {
         Session::addMessageAfterRedirect('Valor de permissão inválido.', false, ERROR);
         Html::back();
     }
     PluginDashureProfile::setRight($profileId, PluginDashureProfile::RIGHT_HOME, $home);
     PluginDashureProfile::setRight($profileId, PluginDashureProfile::RIGHT_NOTES, $notes);
+    PluginDashureProfile::setRight($profileId, PluginDashureProfile::RIGHT_ZABBIX, $zabbix);
     if ($profileId === (int) ($_SESSION['glpiactiveprofile']['id'] ?? 0)) {
         PluginDashureProfile::changeProfile();
     }

@@ -12,6 +12,9 @@ class PluginDashureProfile extends CommonDBTM
     public const RIGHT_HOME = 'plugin_dashure';
     /** READ = vê anotações liberadas ao perfil; CREATE = cria (e edita as próprias); UPDATE = gerencia todas. */
     public const RIGHT_NOTES = 'plugin_dashure_notes';
+    /** READ = vê o painel Zabbix; UPDATE = configura a conexão. */
+    public const RIGHT_ZABBIX = 'plugin_dashure_zabbix';
+    public const RIGHTS = [self::RIGHT_HOME, self::RIGHT_NOTES, self::RIGHT_ZABBIX];
 
     public const HOME_OPTIONS = [
         0               => '— Sem acesso —',
@@ -23,6 +26,11 @@ class PluginDashureProfile extends CommonDBTM
         READ                     => 'Ver as anotações liberadas para o perfil',
         READ | CREATE            => 'Ver e criar (edita as próprias)',
         READ | CREATE | UPDATE   => 'Gerenciar todas (vê e edita todas, vê o histórico)',
+    ];
+    public const ZABBIX_OPTIONS = [
+        0             => '— Sem acesso —',
+        READ          => 'Ver o painel Zabbix',
+        READ | UPDATE => 'Ver e configurar a conexão',
     ];
 
     public static function getTypeName($nb = 0)
@@ -40,6 +48,7 @@ class PluginDashureProfile extends CommonDBTM
             $isAdmin = (self::rightValue($profileId, 'config') & UPDATE) === UPDATE;
             self::addIfMissing($profileId, self::RIGHT_HOME, $isAdmin ? READ | UPDATE : 0);
             self::addIfMissing($profileId, self::RIGHT_NOTES, $isAdmin ? READ | CREATE | UPDATE : 0);
+            self::addIfMissing($profileId, self::RIGHT_ZABBIX, $isAdmin ? READ | UPDATE : 0);
         }
         self::changeProfile();
     }
@@ -48,7 +57,7 @@ class PluginDashureProfile extends CommonDBTM
     {
         global $DB;
 
-        foreach ([self::RIGHT_HOME, self::RIGHT_NOTES] as $name) {
+        foreach (self::RIGHTS as $name) {
             $DB->delete(ProfileRight::getTable(), ['name' => $name]);
             unset($_SESSION['glpiactiveprofile'][$name]);
         }
@@ -93,7 +102,7 @@ class PluginDashureProfile extends CommonDBTM
         if ($profileId <= 0) {
             return;
         }
-        foreach ([self::RIGHT_HOME, self::RIGHT_NOTES] as $name) {
+        foreach (self::RIGHTS as $name) {
             $_SESSION['glpiactiveprofile'][$name] = self::rightValue($profileId, $name);
         }
     }
@@ -117,6 +126,7 @@ class PluginDashureProfile extends CommonDBTM
         $profileId = (int) $item->getID();
         $home = self::rightValue($profileId, self::RIGHT_HOME);
         $notes = self::rightValue($profileId, self::RIGHT_NOTES);
+        $zabbix = self::rightValue($profileId, self::RIGHT_ZABBIX);
         $canEdit = Session::haveRightsOr('profile', [CREATE, UPDATE, PURGE]);
         $h = [PluginDashureHome::class, 'h'];
 
@@ -127,6 +137,7 @@ class PluginDashureProfile extends CommonDBTM
         $rows = [
             ['home_rights', 'Aba Início', 'Página inicial do GLPI → aba Início', self::HOME_OPTIONS, $home],
             ['notes_rights', 'Anotações (logins e senhas)', 'Cada anotação só aparece para os perfis marcados nela', self::NOTES_OPTIONS, $notes],
+            ['zabbix_rights', 'Painel Zabbix', 'Sub-aba Zabbix no Início (problemas e hosts)', self::ZABBIX_OPTIONS, $zabbix],
         ];
         foreach ($rows as $i => [$field, $label, $hint, $options, $value]) {
             echo "<tr class='tab_bg_" . ($i % 2 + 1) . "'><td width='45%'><strong>" . $h($label) . '</strong><br><small>' . $h($hint) . '</small></td><td>';

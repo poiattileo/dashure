@@ -82,6 +82,22 @@ function plugin_dashure_install(): bool
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
     }
 
+    // Conexão com o Zabbix (linha única, id = 1). Token criptografado com a chave do GLPI.
+    if (!$DB->tableExists('glpi_plugin_dashure_zabbix')) {
+        $DB->doQuery("CREATE TABLE `glpi_plugin_dashure_zabbix` (
+            `id`              INT {$sign} NOT NULL AUTO_INCREMENT,
+            `url`             VARCHAR(500) NOT NULL DEFAULT '',
+            `token_encrypted` TEXT DEFAULT NULL,
+            `min_severity`    TINYINT NOT NULL DEFAULT 2,
+            `groupids`        TEXT DEFAULT NULL,
+            `verify_ssl`      TINYINT(1) NOT NULL DEFAULT 1,
+            `refresh`         INT NOT NULL DEFAULT 60,
+            `max_problems`    INT NOT NULL DEFAULT 30,
+            `date_mod`        TIMESTAMP NULL DEFAULT NULL,
+            PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
+    }
+
     PluginDashureProfile::install();
 
     return true;
@@ -95,7 +111,7 @@ function plugin_dashure_uninstall(): bool
 
     foreach ([
         'glpi_plugin_dashure_notices', 'glpi_plugin_dashure_links', 'glpi_plugin_dashure_notes',
-        'glpi_plugin_dashure_notes_profiles', 'glpi_plugin_dashure_notes_logs',
+        'glpi_plugin_dashure_notes_profiles', 'glpi_plugin_dashure_notes_logs', 'glpi_plugin_dashure_zabbix',
     ] as $table) {
         if ($DB->tableExists($table)) {
             $DB->doQuery("DROP TABLE `{$table}`") or die($DB->error());

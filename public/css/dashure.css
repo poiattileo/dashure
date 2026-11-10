@@ -319,3 +319,19 @@ a.dashure-stat:hover { border-color: var(--tone); color: var(--dashure-text); }
 .dashure-log { display: flex; flex-direction: column; gap: 6px; list-style: none; margin: 0; max-height: 520px; overflow-y: auto; padding: 0; }
 .dashure-log li { border-bottom: 1px solid var(--dashure-border); font-size: .85rem; padding-bottom: 6px; }
 .dashure-log small { color: var(--dashure-muted); display: block; }
+
+/* Painel Zabbix */
+.dashure-zabbix { display: flex; flex-direction: column; gap: 12px; }
+.dashure-zabbix > .dashure-card { display: flex; flex-direction: column; gap: 14px; }
+.dashure-zabbix .dashure-card-head { flex-wrap: wrap; margin-bottom: 0; }
+.dashure-zabbix-meta { color: var(--dashure-muted); font-size: .82rem; }
+.dashure-zabbix-meta a { font-weight: 600; }
+.dashure-sev .dashure-stat { --tone: #97aab3; }
+.dashure-problems a { border-left: 4px solid var(--tone); }
+.dashure-sev-pill { --tone: inherit; background: color-mix(in srgb, var(--tone) 18%, transparent); color: var(--dashure-text); min-width: 74px; justify-content: center; }
+.dashure-problem-age { color: var(--dashure-muted); flex-shrink: 0; font-size: .8rem; white-space: nowrap; }
+.dashure-problem-age .ti-check { color: #16a34a; }
+.dashure-down .ti-point-filled { color: #dc2626; }
+.dashure-spin { animation: dashure-spin 1s linear infinite; display: inline-block; }
+@keyframes dashure-spin { to { transform: rotate(360deg); } }
+.dashure-group-list { display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow-y: auto; }

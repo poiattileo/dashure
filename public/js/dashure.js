@@ -24,6 +24,10 @@
         root.querySelectorAll('[data-dashure-pane]').forEach(function (pane) {
             pane.hidden = pane.getAttribute('data-dashure-pane') !== key;
         });
+        if (key === 'zabbix') {
+            var zbx = root.querySelector('[data-dashure-zabbix]');
+            if (zbx) { loadZabbix(zbx); }
+        }
         return true;
     }
 
@@ -33,6 +37,47 @@
         root.dataset.ready = '1';
         var saved = store(STORE_KEY);
         if (saved) { activate(root.closest('.dashure') || document, saved); }
+        var host = root.closest('.dashure') || document;
+        var zbx = host.querySelector('[data-dashure-zabbix]');
+        var zpane = zbx && zbx.closest('[data-dashure-pane]');
+        if (zbx && zpane && !zpane.hidden) { loadZabbix(zbx); }
+    }
+
+    /* Painel Zabbix: carrega ao abrir a sub-aba e atualiza enquanto estiver visível. */
+    async function loadZabbix(section) {
+        if (section.dataset.loading) { return; }
+        section.dataset.loading = '1';
+        try {
+            var body = new FormData();
+            body.set('action', 'zabbix_panel');
+            var response = await fetch(section.getAttribute('data-ajax'), {
+                method: 'POST', body: body, credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            var data = await response.json().catch(function () { return {}; });
+            if (!response.ok || !data.ok) { throw new Error(data.error || 'Falha ao consultar o Zabbix.'); }
+            section.innerHTML = data.html;
+        } catch (error) {
+            var p = document.createElement('p');
+            p.className = 'dashure-muted dashure-zabbix-error';
+            p.textContent = error.message;
+            var old = section.querySelector('.dashure-zabbix-error');
+            if (old) { old.remove(); }
+            if (section.querySelector('.dashure-card')) { section.prepend(p); } else { section.innerHTML = ''; section.appendChild(p); }
+        } finally {
+            delete section.dataset.loading;
+        }
+        if (!section.dataset.timer) {
+            var seconds = Math.max(30, parseInt(section.getAttribute('data-refresh'), 10) || 60);
+            section.dataset.timer = String(window.setInterval(function () {
+                if (!document.body.contains(section)) {
+                    window.clearInterval(parseInt(section.dataset.timer, 10));
+                    return;
+                }
+                var pane = section.closest('[data-dashure-pane]');
+                if (!document.hidden && pane && !pane.hidden) { loadZabbix(section); }
+            }, seconds * 1000));
+        }
     }
 
     function scan() {
