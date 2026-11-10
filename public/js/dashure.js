@@ -57,7 +57,7 @@
             var data = await response.json().catch(function () { return {}; });
             if (!response.ok || !data.ok) { throw new Error(data.error || 'Falha ao consultar o Zabbix.'); }
             (section.querySelector('[data-zabbix-summary]') || section).innerHTML = data.html;
-            applyZFilter(section, section.dataset.zfilter || '');
+            applyZFilter(section, section.dataset.zactive || '');
         } catch (error) {
             var p = document.createElement('p');
             p.className = 'dashure-muted dashure-zabbix-error';
@@ -231,7 +231,7 @@
 
     /* Contadores do Zabbix: "sev:N" filtra os problemas; "host:estado" mostra os cartões dos hosts. */
     function applyZFilter(section, filter) {
-        section.dataset.zfilter = filter;
+        section.dataset.zactive = filter;
         var summary = section.querySelector('[data-zabbix-summary]');
         if (!summary) { return; }
         summary.querySelectorAll('[data-zfilter]').forEach(function (b) {
@@ -493,7 +493,7 @@
         if (zf) {
             var zsec = zf.closest('[data-dashure-zabbix]');
             var value = zf.getAttribute('data-zfilter');
-            applyZFilter(zsec, zsec.dataset.zfilter === value ? '' : value);
+            applyZFilter(zsec, zsec.dataset.zactive === value ? '' : value);
             return;
         }
 
