@@ -481,3 +481,6 @@ body.dashure-modal-open { overflow: hidden; }
 .dashure-prev-list li[hidden] { display: none; }
 .dashure-prev-list .dashure-list-row i { color: #d97706; }
 @media (max-width: 800px) { .dashure-prev-grid { grid-template-columns: 1fr; } }
+.dashure-prev-grid.is-single { grid-template-columns: 1fr; }
+.dashure-prev-grid > div[hidden] { display: none; }
+.dashure-prev-list li.is-out { display: none; }

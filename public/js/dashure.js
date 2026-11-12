@@ -426,6 +426,34 @@
         }
     }
 
+    /* Preventiva: os contadores mostram só as escolas correspondentes. */
+    function applyPrevFilter(section, filter) {
+        section.dataset.pactive = filter;
+        section.querySelectorAll('[data-prev-filter]').forEach(function (b) {
+            var on = b.getAttribute('data-prev-filter') === filter;
+            b.classList.toggle('is-selected', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        var showMissing = filter === '' || filter === 'all' || filter === 'missing';
+        var showResponded = filter !== 'missing';
+        var onlyProblems = filter === 'problems';
+        var cols = { missing: showMissing, responded: showResponded };
+        Object.keys(cols).forEach(function (key) {
+            var col = section.querySelector('[data-prev-col="' + key + '"]');
+            if (col) { col.hidden = !cols[key]; }
+        });
+        var grid = section.querySelector('.dashure-prev-grid');
+        if (grid) { grid.classList.toggle('is-single', !(showMissing && showResponded)); }
+        section.querySelectorAll('[data-prev-col="responded"] li[data-prev-problems]').forEach(function (li) {
+            li.classList.toggle('is-out', onlyProblems && li.getAttribute('data-prev-problems') !== '1');
+        });
+        var title = section.querySelector('[data-prev-col="responded"] [data-prev-title]');
+        if (title) {
+            var items = section.querySelectorAll('[data-prev-col="responded"] li[data-prev-problems]:not(.is-out)').length;
+            title.textContent = (onlyProblems ? 'Responderam com problemas' : 'Já responderam') + ' (' + items + ')';
+        }
+    }
+
     function loadCharts(section, force) {
         var box = section.querySelector('[data-zabbix-charts]');
         if (!box) { return; }
@@ -551,6 +579,14 @@
             store(zfig.dataset.scaleKey, zs.getAttribute('data-zscale-mode'));
             var zsection = zs.closest('[data-dashure-zabbix]');
             drawChart(zfig, zsection.getAttribute('data-ajax'), store(RANGE_KEY) || '1d', zsection.getAttribute('data-echarts'));
+            return;
+        }
+
+        var pf = event.target.closest('[data-prev-filter]');
+        if (pf) {
+            var psec = pf.closest('[data-dashure-prev]');
+            var pvalue = pf.getAttribute('data-prev-filter');
+            applyPrevFilter(psec, psec.dataset.pactive === pvalue ? '' : pvalue);
             return;
         }
 

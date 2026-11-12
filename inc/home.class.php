@@ -50,8 +50,8 @@ class PluginDashureHome extends CommonGLPI
         // Sub-abas: [chave, título, ícone, renderizador]. As vazias (sem acesso) não aparecem.
         $definitions = [
             ['zabbix', 'Zabbix', 'ti ti-activity-heartbeat', static fn (): string => PluginDashureZabbix::canView() ? PluginDashureZabbix::renderShell() : ''],
-            ['notes', 'Anotações', 'ti ti-lock', static fn (): string => PluginDashureNote::canView() ? self::renderNotes() : ''],
             ['preventiva', 'Preventiva', 'ti ti-clipboard-check', static fn (): string => self::renderPreventiva()],
+            ['notes', 'Anotações', 'ti ti-lock', static fn (): string => PluginDashureNote::canView() ? self::renderNotes() : ''],
             ['tralla', 'Tralla', 'ti ti-layout-kanban', static fn (): string => self::renderTralla($userId)],
             ['assignature', 'Assignat-ure', 'ti ti-signature', static fn (): string => self::renderAssignature($userId)],
             ['notices', 'Avisos e atalhos', 'ti ti-speakerphone', static fn (): string => self::renderLinks() . self::renderNotices()],
@@ -274,12 +274,18 @@ class PluginDashureHome extends CommonGLPI
             . self::h((string) $board['name']) . '</h3>'
             . '<a href="' . self::h($kanban) . '">Abrir quadro <i class="ti ti-arrow-right" aria-hidden="true"></i></a></header>';
 
-        $out .= '<div class="dashure-stats">'
-            . self::stat('Escolas', $total, 'blue', 'ti ti-building-community')
-            . self::stat('Responderam', $respondedSchools, 'green', 'ti ti-circle-check')
-            . self::stat('Faltam responder', count($missing), 'amber', 'ti ti-hourglass')
-            . self::stat('Relataram problemas', $withProblems, 'red', 'ti ti-alert-triangle')
-            . '</div>';
+        // Contadores clicáveis: filtram as listas abaixo (clicar de novo volta a mostrar tudo).
+        $out .= '<div class="dashure-stats">';
+        foreach ([
+            ['all', 'Escolas', $total, 'blue', 'ti ti-building-community'],
+            ['responded', 'Responderam', $respondedSchools, 'green', 'ti ti-circle-check'],
+            ['missing', 'Faltam responder', count($missing), 'amber', 'ti ti-hourglass'],
+            ['problems', 'Relataram problemas', $withProblems, 'red', 'ti ti-alert-triangle'],
+        ] as [$key, $label, $value, $tone, $icon]) {
+            $out .= '<button type="button" class="dashure-stat is-' . $tone . ($value === 0 ? ' is-zero' : '') . '" data-prev-filter="' . $key . '" aria-pressed="false">'
+                . '<i class="' . $icon . '" aria-hidden="true"></i><strong>' . (int) $value . '</strong><span>' . self::h($label) . '</span></button>';
+        }
+        $out .= '</div>';
 
         $out .= '<div class="dashure-prev-progress" role="progressbar" aria-valuenow="' . $pct . '" aria-valuemin="0" aria-valuemax="100">'
             . '<span style="width:' . $pct . '%"></span><strong>' . $pct . '% das escolas responderam</strong></div>';
@@ -292,7 +298,7 @@ class PluginDashureHome extends CommonGLPI
         $out .= '<div class="dashure-prev-grid">';
 
         // Faltam
-        $out .= '<div><h4 class="dashure-subtitle">Faltam responder (' . count($missing) . ')</h4>';
+        $out .= '<div data-prev-col="missing"><h4 class="dashure-subtitle" data-prev-title="Faltam responder">Faltam responder (' . count($missing) . ')</h4>';
         if ($missing === []) {
             $out .= '<p class="dashure-muted"><i class="ti ti-mood-smile"></i> Todas as escolas já responderam.</p>';
         } else {
@@ -307,14 +313,14 @@ class PluginDashureHome extends CommonGLPI
         $out .= '</div>';
 
         // Responderam
-        $out .= '<div><h4 class="dashure-subtitle">Já responderam (' . count($responded) . ')</h4>';
+        $out .= '<div data-prev-col="responded"><h4 class="dashure-subtitle" data-prev-title="Já responderam">Já responderam (' . count($responded) . ')</h4>';
         if ($responded === []) {
             $out .= '<p class="dashure-muted">Nenhuma resposta ainda.</p>';
         } else {
             $out .= '<ul class="dashure-list dashure-prev-list">';
             foreach ($responded as $entityId => $info) {
                 $cardUrl = $kanban . '&card=' . (int) $info['card'];
-                $out .= '<li data-prev-name="' . self::h(mb_strtolower($info['name'])) . '"><a href="' . self::h($cardUrl) . '">'
+                $out .= '<li data-prev-name="' . self::h(mb_strtolower($info['name'])) . '" data-prev-problems="' . ($info['problems'] ? '1' : '0') . '"><a href="' . self::h($cardUrl) . '">'
                     . '<span class="dashure-pill ' . ($info['problems'] ? 'is-red' : 'is-green') . '">' . ($info['problems'] ? 'Com problemas' : 'Sem problemas') . '</span>'
                     . '<span class="dashure-list-main"><strong>' . self::h($info['name']) . '</strong>'
                     . '<small>' . self::h(date('d/m/Y H:i', strtotime($info['last'])))
