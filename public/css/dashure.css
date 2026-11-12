@@ -484,3 +484,8 @@ body.dashure-modal-open { overflow: hidden; }
 .dashure-prev-grid.is-single { grid-template-columns: 1fr; }
 .dashure-prev-grid > div[hidden] { display: none; }
 .dashure-prev-list li.is-out { display: none; }
+
+/* Card do Tralla aberto dentro do Dashure */
+.dashure-card-modal { inset: 0; position: fixed; z-index: 1090; }
+.dashure-card-modal iframe { background: transparent; border: 0; height: 100%; width: 100%; }
+.dashure-card-modal-load { background: rgba(0,0,0,.55); border-radius: 8px; color: #fff; left: 50%; padding: 10px 16px; position: absolute; top: 50%; transform: translate(-50%, -50%); }

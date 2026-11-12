@@ -558,6 +558,33 @@
 
     var hideTimers = new WeakMap();
 
+    // Abre o card do Tralla (modo embed) sobre o Dashure, sem sair da página.
+    function closeCardModal() {
+        var layer = document.querySelector('.dashure-card-modal');
+        if (layer) { layer.remove(); }
+        document.body.style.overflow = '';
+    }
+    function openCardModal(url) {
+        closeCardModal();
+        var layer = document.createElement('div');
+        layer.className = 'dashure-card-modal';
+        layer.innerHTML = '<span class="dashure-card-modal-load"><i class="ti ti-loader-2"></i> Abrindo card…</span>'
+            + '<iframe title="Card do Tralla" allowtransparency="true"></iframe>';
+        var frame = layer.querySelector('iframe');
+        frame.addEventListener('load', function () {
+            var l = layer.querySelector('.dashure-card-modal-load');
+            if (l) { l.remove(); }
+        });
+        frame.src = url;
+        document.body.appendChild(layer);
+        document.body.style.overflow = 'hidden';
+    }
+    window.addEventListener('message', function (event) {
+        if (event.origin === window.location.origin && event.data && event.data.trallaEmbed === 'closed') {
+            closeCardModal();
+        }
+    });
+
     document.addEventListener('click', async function (event) {
         var tab = event.target.closest('[data-dashure-tab]');
         if (tab) {
@@ -589,6 +616,13 @@
             var psec = pf.closest('[data-dashure-prev]');
             var pvalue = pf.getAttribute('data-prev-filter');
             applyPrevFilter(psec, psec.dataset.pactive === pvalue ? '' : pvalue);
+            return;
+        }
+
+        var card = event.target.closest('[data-prev-card]');
+        if (card && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.button === 0) {
+            event.preventDefault();
+            openCardModal(card.getAttribute('data-prev-card'));
             return;
         }
 

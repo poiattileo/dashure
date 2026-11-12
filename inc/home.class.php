@@ -321,7 +321,7 @@ class PluginDashureHome extends CommonGLPI
             $out .= '<ul class="dashure-list dashure-prev-list">';
             foreach ($responded as $entityId => $info) {
                 $cardUrl = $kanban . '&card=' . (int) $info['card'];
-                $out .= '<li data-prev-name="' . self::h(mb_strtolower($info['name'])) . '" data-prev-problems="' . ($info['problems'] ? '1' : '0') . '"><a href="' . self::h($cardUrl) . '">'
+                $out .= '<li data-prev-name="' . self::h(mb_strtolower($info['name'])) . '" data-prev-problems="' . ($info['problems'] ? '1' : '0') . '"><a href="' . self::h($cardUrl) . '" data-prev-card="' . self::h($cardUrl . '&embed=1') . '">'
                     . '<span class="dashure-pill ' . ($info['problems'] ? 'is-red' : 'is-green') . '">' . ($info['problems'] ? 'Com problemas' : 'Sem problemas') . '</span>'
                     . '<span class="dashure-list-main"><strong>' . self::h($info['name']) . '</strong>'
                     . '<small>' . self::h(date('d/m/Y H:i', strtotime($info['last'])))
