@@ -467,3 +467,17 @@ body.dashure-modal-open { overflow: hidden; }
 @media (max-width: 700px) { .dashure-modal-layer { padding: 0; align-items: flex-end; } .dashure-modal { border-radius: 14px 14px 0 0; max-height: 94vh; } }
 .dashure-modal { --dashure-surface: var(--tblr-bg-surface, #fff); --dashure-border: var(--tblr-border-color, #e3e7ee); --dashure-muted: var(--tblr-secondary, #6b7280); --dashure-text: var(--tblr-body-color, #1f2937); --dashure-accent: #2f6fb3; }
 .dashure-ztools { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+
+/* Preventiva: quem respondeu e quem falta */
+.dashure-prev { display: flex; flex-direction: column; gap: 14px; }
+.dashure-prev .dashure-card-head { margin-bottom: 0; }
+.dashure-prev-progress { background: color-mix(in srgb, var(--dashure-accent) 12%, transparent); border-radius: 999px; height: 26px; overflow: hidden; position: relative; }
+.dashure-prev-progress > span { background: linear-gradient(90deg, #2f6fb3, #16a34a); bottom: 0; left: 0; position: absolute; top: 0; transition: width .4s; }
+.dashure-prev-progress > strong { color: var(--dashure-text); font-size: .8rem; left: 12px; line-height: 26px; position: absolute; text-shadow: 0 0 6px var(--dashure-surface); }
+.dashure-prev-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
+.dashure-prev-bar .dashure-search { flex: 1 1 240px; }
+.dashure-prev-grid { align-items: start; display: grid; gap: 18px; grid-template-columns: 1fr 1fr; }
+.dashure-prev-list { max-height: 560px; overflow-y: auto; padding-right: 2px; }
+.dashure-prev-list li[hidden] { display: none; }
+.dashure-prev-list .dashure-list-row i { color: #d97706; }
+@media (max-width: 800px) { .dashure-prev-grid { grid-template-columns: 1fr; } }

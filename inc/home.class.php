@@ -51,6 +51,7 @@ class PluginDashureHome extends CommonGLPI
         $definitions = [
             ['zabbix', 'Zabbix', 'ti ti-activity-heartbeat', static fn (): string => PluginDashureZabbix::canView() ? PluginDashureZabbix::renderShell() : ''],
             ['notes', 'Anotações', 'ti ti-lock', static fn (): string => PluginDashureNote::canView() ? self::renderNotes() : ''],
+            ['preventiva', 'Preventiva', 'ti ti-clipboard-check', static fn (): string => self::renderPreventiva()],
             ['tralla', 'Tralla', 'ti ti-layout-kanban', static fn (): string => self::renderTralla($userId)],
             ['assignature', 'Assignat-ure', 'ti ti-signature', static fn (): string => self::renderAssignature($userId)],
             ['notices', 'Avisos e atalhos', 'ti ti-speakerphone', static fn (): string => self::renderLinks() . self::renderNotices()],
@@ -203,6 +204,128 @@ class PluginDashureHome extends CommonGLPI
         $out .= '</div><p class="dashure-muted" data-dashure-noresult hidden>Nenhuma anotação encontrada.</p>';
 
         return $out . '</section>';
+    }
+
+    /* -------------------------------------------------------------- Preventiva */
+
+    /** Quem já respondeu o formulário de Preventiva e quem falta (escolas = entidades sem filhas). */
+    private static function renderPreventiva(): string
+    {
+        global $DB;
+
+        if (!Plugin::isPluginActive('tralla') || !Session::haveRight('plugin_tralla', READ)) {
+            return '';
+        }
+        if (!class_exists('PluginTrallaPreventiva')) {
+            $file = GLPI_ROOT . '/plugins/tralla/inc/preventiva.class.php';
+            if (!is_file($file)) {
+                return '';
+            }
+            require_once $file;
+        }
+        $board = PluginTrallaPreventiva::targetBoard();
+        if ($board === null || !PluginTrallaBoard::canViewBoard((int) $board['id'])) {
+            return '';
+        }
+        $boardId = (int) $board['id'];
+
+        // Respostas = cards do quadro Preventiva que não foram excluídos.
+        $answers = [];
+        foreach ($DB->request([
+            'SELECT'    => ['c.id', 'c.entities_id', 'c.name', 'c.date_creation', 'a.answered_at', 'a.has_problems'],
+            'FROM'      => 'glpi_plugin_tralla_cards AS c',
+            'LEFT JOIN' => ['glpi_plugin_tralla_preventiva_answers AS a' => ['ON' => ['a' => 'plugin_tralla_cards_id', 'c' => 'id']]],
+            'WHERE'     => ['c.plugin_tralla_boards_id' => $boardId, 'c.stage' => 1, 'c.is_deleted' => 0],
+            'ORDER'     => 'c.id DESC',
+        ]) as $row) {
+            $entityId = (int) $row['entities_id'];
+            $when = (string) ($row['answered_at'] ?: $row['date_creation']);
+            if (!isset($answers[$entityId])) {
+                $answers[$entityId] = ['name' => (string) $row['name'], 'count' => 0, 'last' => $when, 'card' => (int) $row['id'], 'problems' => false];
+            }
+            $answers[$entityId]['count']++;
+            if ($when > $answers[$entityId]['last']) {
+                $answers[$entityId]['last'] = $when;
+                $answers[$entityId]['card'] = (int) $row['id'];
+            }
+            if ($row['has_problems'] !== null && (int) $row['has_problems'] === 1) {
+                $answers[$entityId]['problems'] = true;
+            }
+        }
+
+        $schools = [];
+        foreach (PluginTrallaPreventiva::schools() as $school) {
+            $schools[(int) $school['id']] = $school['nome'];
+        }
+        $missing = array_diff_key($schools, $answers);
+        $responded = [];
+        foreach ($answers as $entityId => $info) {
+            $responded[$entityId] = $info + ['listed' => isset($schools[$entityId])];
+        }
+        uasort($responded, static fn ($a, $b) => strcmp($b['last'], $a['last']));
+        $respondedSchools = count(array_intersect_key($answers, $schools));
+        $withProblems = count(array_filter(array_intersect_key($answers, $schools), static fn ($a) => $a['problems']));
+        $total = count($schools);
+        $pct = $total > 0 ? (int) round($respondedSchools * 100 / $total) : 0;
+        $kanban = self::pluginUrl('tralla', '/front/kanban.php?boards_id=' . $boardId);
+
+        $out = '<section class="dashure-card dashure-prev" data-dashure-prev>'
+            . '<header class="dashure-card-head"><h3><i class="ti ti-clipboard-check" aria-hidden="true"></i> '
+            . self::h((string) $board['name']) . '</h3>'
+            . '<a href="' . self::h($kanban) . '">Abrir quadro <i class="ti ti-arrow-right" aria-hidden="true"></i></a></header>';
+
+        $out .= '<div class="dashure-stats">'
+            . self::stat('Escolas', $total, 'blue', 'ti ti-building-community')
+            . self::stat('Responderam', $respondedSchools, 'green', 'ti ti-circle-check')
+            . self::stat('Faltam responder', count($missing), 'amber', 'ti ti-hourglass')
+            . self::stat('Relataram problemas', $withProblems, 'red', 'ti ti-alert-triangle')
+            . '</div>';
+
+        $out .= '<div class="dashure-prev-progress" role="progressbar" aria-valuenow="' . $pct . '" aria-valuemin="0" aria-valuemax="100">'
+            . '<span style="width:' . $pct . '%"></span><strong>' . $pct . '% das escolas responderam</strong></div>';
+
+        $out .= '<div class="dashure-prev-bar"><label class="dashure-search"><i class="ti ti-search" aria-hidden="true"></i>'
+            . '<input type="search" class="form-control" placeholder="Buscar escola" data-prev-search></label>'
+            . '<button type="button" class="dashure-btn dashure-btn-ghost" data-prev-copy' . ($missing === [] ? ' disabled' : '') . '>'
+            . '<i class="ti ti-copy" aria-hidden="true"></i> Copiar lista de quem falta</button></div>';
+
+        $out .= '<div class="dashure-prev-grid">';
+
+        // Faltam
+        $out .= '<div><h4 class="dashure-subtitle">Faltam responder (' . count($missing) . ')</h4>';
+        if ($missing === []) {
+            $out .= '<p class="dashure-muted"><i class="ti ti-mood-smile"></i> Todas as escolas já responderam.</p>';
+        } else {
+            $out .= '<ul class="dashure-list dashure-prev-list">';
+            foreach ($missing as $name) {
+                $out .= '<li data-prev-name="' . self::h(mb_strtolower($name)) . '" data-prev-missing="' . self::h($name) . '">'
+                    . '<div class="dashure-list-row"><i class="ti ti-clock-hour-4" aria-hidden="true"></i>'
+                    . '<span class="dashure-list-main"><strong>' . self::h($name) . '</strong></span></div></li>';
+            }
+            $out .= '</ul>';
+        }
+        $out .= '</div>';
+
+        // Responderam
+        $out .= '<div><h4 class="dashure-subtitle">Já responderam (' . count($responded) . ')</h4>';
+        if ($responded === []) {
+            $out .= '<p class="dashure-muted">Nenhuma resposta ainda.</p>';
+        } else {
+            $out .= '<ul class="dashure-list dashure-prev-list">';
+            foreach ($responded as $entityId => $info) {
+                $cardUrl = $kanban . '&card=' . (int) $info['card'];
+                $out .= '<li data-prev-name="' . self::h(mb_strtolower($info['name'])) . '"><a href="' . self::h($cardUrl) . '">'
+                    . '<span class="dashure-pill ' . ($info['problems'] ? 'is-red' : 'is-green') . '">' . ($info['problems'] ? 'Com problemas' : 'Sem problemas') . '</span>'
+                    . '<span class="dashure-list-main"><strong>' . self::h($info['name']) . '</strong>'
+                    . '<small>' . self::h(date('d/m/Y H:i', strtotime($info['last'])))
+                    . ($info['count'] > 1 ? ' · ' . (int) $info['count'] . ' respostas' : '')
+                    . (!$info['listed'] ? ' · fora da lista do formulário' : '') . '</small></span></a></li>';
+            }
+            $out .= '</ul>';
+        }
+        $out .= '</div></div></section>';
+
+        return $out;
     }
 
     /* ------------------------------------------------------------------ Tralla */

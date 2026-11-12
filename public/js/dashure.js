@@ -554,6 +554,21 @@
             return;
         }
 
+        var pc = event.target.closest('[data-prev-copy]');
+        if (pc) {
+            var names = Array.prototype.map.call(
+                pc.closest('[data-dashure-prev]').querySelectorAll('[data-prev-missing]'),
+                function (li) { return li.getAttribute('data-prev-missing'); }
+            );
+            try {
+                await copyText(names.join('\n'));
+                var old = pc.innerHTML;
+                pc.innerHTML = '<i class="ti ti-check"></i> ' + names.length + ' escola(s) copiada(s)';
+                setTimeout(function () { pc.innerHTML = old; }, 1800);
+            } catch (e) { notify('Não foi possível copiar a lista.'); }
+            return;
+        }
+
         var zg = event.target.closest('[data-zhost-graphs]');
         if (zg) {
             openHostGraphs(zg);
@@ -655,6 +670,13 @@
     document.addEventListener('input', function (event) {
         if (event.target.matches('[data-dashure-search]')) {
             filterNotes(event.target.closest('[data-dashure-notes]'));
+        }
+        if (event.target.matches('[data-prev-search]')) {
+            var term = event.target.value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            event.target.closest('[data-dashure-prev]').querySelectorAll('[data-prev-name]').forEach(function (li) {
+                var name = li.getAttribute('data-prev-name').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                li.hidden = term !== '' && name.indexOf(term) === -1;
+            });
         }
     });
 })();
