@@ -437,6 +437,7 @@
         var showMissing = filter === '' || filter === 'all' || filter === 'missing';
         var showResponded = filter !== 'missing';
         var onlyProblems = filter === 'problems';
+        var onlyNoProblems = filter === 'noproblems';
         var cols = { missing: showMissing, responded: showResponded };
         Object.keys(cols).forEach(function (key) {
             var col = section.querySelector('[data-prev-col="' + key + '"]');
@@ -445,12 +446,13 @@
         var grid = section.querySelector('.dashure-prev-grid');
         if (grid) { grid.classList.toggle('is-single', !(showMissing && showResponded)); }
         section.querySelectorAll('[data-prev-col="responded"] li[data-prev-problems]').forEach(function (li) {
-            li.classList.toggle('is-out', onlyProblems && li.getAttribute('data-prev-problems') !== '1');
+            var has = li.getAttribute('data-prev-problems') === '1';
+            li.classList.toggle('is-out', (onlyProblems && !has) || (onlyNoProblems && has));
         });
         var title = section.querySelector('[data-prev-col="responded"] [data-prev-title]');
         if (title) {
             var items = section.querySelectorAll('[data-prev-col="responded"] li[data-prev-problems]:not(.is-out)').length;
-            title.textContent = (onlyProblems ? 'Responderam com problemas' : 'Já responderam') + ' (' + items + ')';
+            title.textContent = (onlyProblems ? 'Responderam com problemas' : (onlyNoProblems ? 'Responderam sem problemas' : 'Já responderam')) + ' (' + items + ')';
         }
     }
 

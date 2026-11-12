@@ -281,6 +281,7 @@ class PluginDashureHome extends CommonGLPI
             ['responded', 'Responderam', $respondedSchools, 'green', 'ti ti-circle-check'],
             ['missing', 'Faltam responder', count($missing), 'amber', 'ti ti-hourglass'],
             ['problems', 'Relataram problemas', $withProblems, 'red', 'ti ti-alert-triangle'],
+            ['noproblems', 'Não relataram problemas', $respondedSchools - $withProblems, 'neutral', 'ti ti-mood-smile'],
         ] as [$key, $label, $value, $tone, $icon]) {
             $out .= '<button type="button" class="dashure-stat is-' . $tone . ($value === 0 ? ' is-zero' : '') . '" data-prev-filter="' . $key . '" aria-pressed="false">'
                 . '<i class="' . $icon . '" aria-hidden="true"></i><strong>' . (int) $value . '</strong><span>' . self::h($label) . '</span></button>';
