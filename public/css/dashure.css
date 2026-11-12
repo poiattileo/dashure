@@ -489,3 +489,9 @@ body.dashure-modal-open { overflow: hidden; }
 .dashure-card-modal { inset: 0; position: fixed; z-index: 1090; }
 .dashure-card-modal iframe { background: transparent; border: 0; height: 100%; width: 100%; }
 .dashure-card-modal-load { background: rgba(0,0,0,.55); border-radius: 8px; color: #fff; left: 50%; padding: 10px 16px; position: absolute; top: 50%; transform: translate(-50%, -50%); }
+
+/* Preventiva: seletor de mês */
+.dashure-prev .dashure-card-head { align-items: center; flex-wrap: wrap; gap: 10px; }
+.dashure-prev-month { align-items: center; display: inline-flex; gap: 6px; margin-left: auto; }
+.dashure-prev-month select { min-width: 160px; }
+.dashure-prev.is-loading { opacity: .55; pointer-events: none; }

@@ -209,7 +209,7 @@ class PluginDashureHome extends CommonGLPI
     /* -------------------------------------------------------------- Preventiva */
 
     /** Quem já respondeu o formulário de Preventiva e quem falta (escolas = entidades sem filhas). */
-    private static function renderPreventiva(): string
+    public static function renderPreventiva(?string $month = null): string
     {
         global $DB;
 
@@ -223,9 +223,46 @@ class PluginDashureHome extends CommonGLPI
             }
             require_once $file;
         }
-        $board = PluginTrallaPreventiva::targetBoard();
-        if ($board === null || !PluginTrallaBoard::canViewBoard((int) $board['id'])) {
+        $all = PluginTrallaPreventiva::boards();
+        if ($all === []) {
             return '';
+        }
+
+        // Meses disponíveis: do primeiro quadro até o mês atual (os futuros só aparecem quando chegarem).
+        $current = date('Y-m');
+        $first = $current;
+        foreach ($all as $candidate) {
+            $period = PluginTrallaPreventiva::normalizePeriod((string) $candidate['period']);
+            if ($period !== '' && $period < $first) {
+                $first = $period;
+            }
+        }
+        $months = [];
+        for ($cursor = new DateTimeImmutable($current . '-01'); $cursor->format('Y-m') >= $first; $cursor = $cursor->modify('-1 month')) {
+            $months[] = $cursor->format('Y-m');
+        }
+        $selected = $month !== null ? PluginTrallaPreventiva::normalizePeriod($month) : '';
+        if ($selected === '' || !in_array($selected, $months, true)) {
+            $selected = $current;
+        }
+        $names = ['01' => 'Janeiro', '02' => 'Fevereiro', '03' => 'Março', '04' => 'Abril', '05' => 'Maio', '06' => 'Junho',
+            '07' => 'Julho', '08' => 'Agosto', '09' => 'Setembro', '10' => 'Outubro', '11' => 'Novembro', '12' => 'Dezembro'];
+        $picker = '<label class="dashure-prev-month"><i class="ti ti-calendar-month" aria-hidden="true"></i>'
+            . '<select class="form-select" data-prev-month aria-label="Mês">';
+        foreach ($months as $m) {
+            $picker .= '<option value="' . $m . '"' . ($m === $selected ? ' selected' : '') . '>'
+                . $names[substr($m, 5, 2)] . '/' . substr($m, 0, 4) . '</option>';
+        }
+        $picker .= '</select></label>';
+        $wrapOpen = '<section class="dashure-card dashure-prev" data-dashure-prev data-ajax="'
+            . self::h(self::pluginUrlPublic('/front/ajax.php')) . '">';
+
+        $board = PluginTrallaPreventiva::targetBoard($selected);
+        if ($board === null || !PluginTrallaBoard::canViewBoard((int) $board['id'])) {
+            return $wrapOpen . '<header class="dashure-card-head"><h3><i class="ti ti-clipboard-check" aria-hidden="true"></i> Preventiva</h3>'
+                . $picker . '</header>'
+                . '<p class="dashure-muted">Não há quadro Preventiva de ' . self::h($names[substr($selected, 5, 2)] . '/' . substr($selected, 0, 4))
+                . '. Crie o quadro no Tralla para receber as respostas desse mês.</p></section>';
         }
         $boardId = (int) $board['id'];
 
@@ -269,9 +306,9 @@ class PluginDashureHome extends CommonGLPI
         $pct = $total > 0 ? (int) round($respondedSchools * 100 / $total) : 0;
         $kanban = self::pluginUrl('tralla', '/front/kanban.php?boards_id=' . $boardId);
 
-        $out = '<section class="dashure-card dashure-prev" data-dashure-prev>'
+        $out = $wrapOpen
             . '<header class="dashure-card-head"><h3><i class="ti ti-clipboard-check" aria-hidden="true"></i> '
-            . self::h((string) $board['name']) . '</h3>'
+            . self::h((string) $board['name']) . '</h3>' . $picker
             . '<a href="' . self::h($kanban) . '">Abrir quadro <i class="ti ti-arrow-right" aria-hidden="true"></i></a></header>';
 
         // Contadores clicáveis: filtram as listas abaixo (clicar de novo volta a mostrar tudo).

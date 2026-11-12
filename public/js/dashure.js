@@ -743,6 +743,21 @@
         if (event.target.matches('[data-dashure-search]')) {
             filterNotes(event.target.closest('[data-dashure-notes]'));
         }
+        if (event.target.matches('[data-prev-month]')) {
+            var psec = event.target.closest('[data-dashure-prev]');
+            var pform = new FormData();
+            pform.set('action', 'prev_panel');
+            pform.set('month', event.target.value);
+            psec.classList.add('is-loading');
+            fetch(psec.getAttribute('data-ajax'), { method: 'POST', body: pform, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (!d.ok || !d.html) { throw new Error(d.error || 'Falha ao carregar o mês.'); }
+                    psec.outerHTML = d.html;
+                })
+                .catch(function (err) { psec.classList.remove('is-loading'); notify(err.message); });
+            return;
+        }
         if (event.target.matches('[data-prev-search]')) {
             var term = event.target.value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             event.target.closest('[data-dashure-prev]').querySelectorAll('[data-prev-name]').forEach(function (li) {

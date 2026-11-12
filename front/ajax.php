@@ -46,6 +46,9 @@ try {
                 : PluginDashureZabbixChart::graphData($zid, (string) ($_POST['range'] ?? '1d'));
             echo json_encode(['ok' => true] + $payload, JSON_UNESCAPED_UNICODE);
             break;
+        case 'prev_panel':
+            echo json_encode(['ok' => true, 'html' => PluginDashureHome::renderPreventiva((string) ($_POST['month'] ?? ''))], JSON_UNESCAPED_UNICODE);
+            break;
         case 'note_secret':
             if (!PluginDashureNote::canView()) {
                 http_response_code(403);
