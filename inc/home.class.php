@@ -342,11 +342,11 @@ class PluginDashureHome extends CommonGLPI
             ? 'conic-gradient(#dc2626 0 ' . $pProblems . '%, #16a34a ' . $pProblems . '% 100%)'
             : 'conic-gradient(#cbd5e1 0 100%)';
         $out .= '<div class="dashure-prev-chart" data-prev-chart hidden>'
-            . '<div class="dashure-prev-pie" style="background:' . $pie . '" role="img" aria-label="Relataram problemas: ' . $withProblems
+            . '<div class="dashure-prev-pie" data-prev-pie="'.$pProblems.'" style="background:' . $pie . '" role="img" aria-label="Relataram problemas: ' . $withProblems
             . ' de ' . $respondedSchools . '"><span><strong>' . $respondedSchools . '</strong>responderam</span></div>'
             . '<ul class="dashure-prev-legend">'
-            . '<li><i style="background:#dc2626"></i> Relataram problemas <strong>' . $withProblems . '</strong> (' . $pProblems . '%)</li>'
-            . '<li><i style="background:#16a34a"></i> Não relataram problemas <strong>' . $noProblems . '</strong> ('
+            . '<li data-prev-pick="problems" tabindex="0"><i style="background:#dc2626"></i> Relataram problemas <strong>' . $withProblems . '</strong> (' . $pProblems . '%)</li>'
+            . '<li data-prev-pick="noproblems" tabindex="0"><i style="background:#16a34a"></i> Não relataram problemas <strong>' . $noProblems . '</strong> ('
             . ($respondedSchools > 0 ? round(100 - $pProblems, 1) : 0) . '%)</li></ul></div>';
 
         $out .= '<div class="dashure-prev-grid">';

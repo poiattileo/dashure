@@ -626,6 +626,22 @@
             return;
         }
 
+        var pie = event.target.closest('[data-prev-pie]');
+        var pick = event.target.closest('[data-prev-pick]');
+        if (pie || pick) {
+            var kind = pick ? pick.getAttribute('data-prev-pick') : '';
+            if (pie && !pick) {
+                var box = pie.getBoundingClientRect();
+                var dx = event.clientX - (box.left + box.width / 2);
+                var dy = event.clientY - (box.top + box.height / 2);
+                var angle = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+                kind = angle < parseFloat(pie.getAttribute('data-prev-pie')) * 3.6 ? 'problems' : 'noproblems';
+            }
+            var gsec = (pie || pick).closest('[data-dashure-prev]');
+            applyPrevFilter(gsec, gsec.dataset.pactive === kind ? '' : kind);
+            return;
+        }
+
         var pf = event.target.closest('[data-prev-filter]');
         if (pf) {
             var psec = pf.closest('[data-dashure-prev]');
