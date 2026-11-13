@@ -208,6 +208,53 @@ class PluginDashureHome extends CommonGLPI
 
     /* -------------------------------------------------------------- Preventiva */
 
+    /** Rosca SVG interativa: cada fatia cresce ao passar o mouse e filtra a lista ao clicar. */
+    private static function donut(string $title, string $centerLabel, array $slices): string
+    {
+        $total = array_sum(array_column($slices, 1));
+        $circ = 2 * M_PI * 72;
+        $rings = '';
+        $offset = 0.0;
+        foreach ($slices as [$label, $value, $color, $pick]) {
+            if ($total <= 0 || $value <= 0) {
+                continue;
+            }
+            $len = $circ * $value / $total;
+            $rings .= '<circle class="dashure-slice" data-prev-pick="' . self::h($pick) . '" cx="100" cy="100" r="72" fill="none" stroke="' . $color
+                . '" stroke-dasharray="' . round($len, 2) . ' ' . round($circ - $len, 2) . '" stroke-dashoffset="' . round(-$offset, 2)
+                . '" transform="rotate(-90 100 100)"><title>' . self::h($label . ': ' . $value . ' (' . round($value * 100 / $total, 1) . '%)') . '</title></circle>';
+            $offset += $len;
+        }
+        if ($rings === '') {
+            $rings = '<circle cx="100" cy="100" r="72" fill="none" stroke="#cbd5e1" stroke-width="36"/>';
+        }
+        $legend = '';
+        foreach ($slices as [$label, $value, $color, $pick]) {
+            $legend .= '<li data-prev-pick="' . self::h($pick) . '" tabindex="0"><i style="background:' . $color . '"></i> ' . self::h($label)
+                . ' <strong>' . (int) $value . '</strong> (' . ($total > 0 ? round($value * 100 / $total, 1) : 0) . '%)</li>';
+        }
+        return '<div class="dashure-prev-chartbox"><h5>' . self::h($title) . '</h5><div class="dashure-prev-chartrow">'
+            . '<svg class="dashure-donut" viewBox="0 0 200 200" role="img" aria-label="' . self::h($title) . '">' . $rings
+            . '<text x="100" y="104" text-anchor="middle" class="dashure-donut-num">' . (int) $total . '</text>'
+            . '<text x="100" y="124" text-anchor="middle" class="dashure-donut-lbl">' . self::h($centerLabel) . '</text></svg>'
+            . '<ul class="dashure-prev-legend">' . $legend . '</ul></div></div>';
+    }
+
+    /** Barras verticais: quantidade de respostas por dia. */
+    private static function dayBars(string $title, array $perDay): string
+    {
+        $max = $perDay === [] ? 0 : max($perDay);
+        $bars = '';
+        foreach ($perDay as $day => $count) {
+            $h = $max > 0 ? max(6, (int) round($count * 100 / $max)) : 0;
+            $label = substr($day, 8, 2) . '/' . substr($day, 5, 2);
+            $bars .= '<div class="dashure-bar" title="' . self::h($label . ': ' . $count . ' resposta(s)') . '"><span class="dashure-bar-n">' . $count
+                . '</span><i style="height:' . $h . '%"></i><span class="dashure-bar-d">' . self::h($label) . '</span></div>';
+        }
+        return '<div class="dashure-prev-chartbox"><h5>' . self::h($title) . '</h5>'
+            . ($bars === '' ? '<p class="dashure-empty">Sem respostas ainda.</p>' : '<div class="dashure-bars">' . $bars . '</div>') . '</div>';
+    }
+
     /** Quem já respondeu o formulário de Preventiva e quem falta (escolas = entidades sem filhas). */
     public static function renderPreventiva(?string $month = null): string
     {
@@ -335,19 +382,27 @@ class PluginDashureHome extends CommonGLPI
             . '<button type="button" class="dashure-btn dashure-btn-ghost" data-prev-copy' . ($missing === [] ? ' disabled' : '') . '>'
             . '<i class="ti ti-copy" aria-hidden="true"></i> Copiar lista de quem falta</button></div>';
 
-        // Pizza: das escolas que responderam, quantas relataram problemas.
+        // Gráficos (rosca interativa + barras por dia).
         $noProblems = $respondedSchools - $withProblems;
-        $pProblems = $respondedSchools > 0 ? round($withProblems * 100 / $respondedSchools, 1) : 0;
-        $pie = $respondedSchools > 0
-            ? 'conic-gradient(#dc2626 0 ' . $pProblems . '%, #16a34a ' . $pProblems . '% 100%)'
-            : 'conic-gradient(#cbd5e1 0 100%)';
+        $perDay = [];
+        foreach (array_intersect_key($answers, $schools) as $info) {
+            $day = substr((string) ($info['last'] ?? ''), 0, 10);
+            if ($day !== '') {
+                $perDay[$day] = ($perDay[$day] ?? 0) + 1;
+            }
+        }
+        ksort($perDay);
         $out .= '<div class="dashure-prev-chart" data-prev-chart hidden>'
-            . '<div class="dashure-prev-pie" data-prev-pie="'.$pProblems.'" style="background:' . $pie . '" role="img" aria-label="Relataram problemas: ' . $withProblems
-            . ' de ' . $respondedSchools . '"><span><strong>' . $respondedSchools . '</strong>responderam</span></div>'
-            . '<ul class="dashure-prev-legend">'
-            . '<li data-prev-pick="problems" tabindex="0"><i style="background:#dc2626"></i> Relataram problemas <strong>' . $withProblems . '</strong> (' . $pProblems . '%)</li>'
-            . '<li data-prev-pick="noproblems" tabindex="0"><i style="background:#16a34a"></i> Não relataram problemas <strong>' . $noProblems . '</strong> ('
-            . ($respondedSchools > 0 ? round(100 - $pProblems, 1) : 0) . '%)</li></ul></div>';
+            . self::donut('Problemas reportados', 'responderam', [
+                ['Relataram problemas', $withProblems, '#dc2626', 'problems'],
+                ['Não relataram problemas', $noProblems, '#16a34a', 'noproblems'],
+            ])
+            . self::donut('Participação', 'escolas', [
+                ['Responderam', $respondedSchools, '#2563eb', 'responded'],
+                ['Faltam responder', count($missing), '#f59e0b', 'missing'],
+            ])
+            . self::dayBars('Respostas por dia', $perDay)
+            . '</div>';
 
         $out .= '<div class="dashure-prev-grid">';
 
