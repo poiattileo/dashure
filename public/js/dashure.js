@@ -426,6 +426,14 @@
         }
     }
 
+    function setPrevChart(section, open) {
+        section.dataset.pchart = open ? '1' : '0';
+        var box = section.querySelector('[data-prev-chart]');
+        var btn = section.querySelector('[data-prev-chart-toggle]');
+        if (box) { box.hidden = !open; }
+        if (btn) { btn.setAttribute('aria-expanded', open ? 'true' : 'false'); btn.classList.toggle('is-selected', open); }
+    }
+
     /* Preventiva: os contadores mostram só as escolas correspondentes. */
     function applyPrevFilter(section, filter) {
         section.dataset.pactive = filter;
@@ -611,6 +619,13 @@
             return;
         }
 
+        var pct = event.target.closest('[data-prev-chart-toggle]');
+        if (pct) {
+            var csec = pct.closest('[data-dashure-prev]');
+            setPrevChart(csec, csec.dataset.pchart !== '1');
+            return;
+        }
+
         var pf = event.target.closest('[data-prev-filter]');
         if (pf) {
             var psec = pf.closest('[data-dashure-prev]');
@@ -768,6 +783,7 @@
                 if (signature(fresh) === (current.dataset.psig || (current.dataset.psig = signature(current))) ) { return; }
                 var term = (current.querySelector('[data-prev-search]') || { value: '' }).value;
                 var filter = current.dataset.pactive || '';
+                var chartOpen = current.dataset.pchart === '1';
                 var scrolls = Array.prototype.map.call(current.querySelectorAll('.dashure-prev-list'), function (ul) { return ul.scrollTop; });
                 current.replaceWith(fresh);
                 fresh.dataset.psig = signature(fresh);
@@ -777,6 +793,7 @@
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                 }
                 if (filter) { applyPrevFilter(fresh, filter); }
+                if (chartOpen) { setPrevChart(fresh, true); }
                 fresh.querySelectorAll('.dashure-prev-list').forEach(function (ul, i) { ul.scrollTop = scrolls[i] || 0; });
             })
             .catch(function () { /* silencioso: tenta de novo no próximo ciclo */ })

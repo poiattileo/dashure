@@ -330,8 +330,24 @@ class PluginDashureHome extends CommonGLPI
 
         $out .= '<div class="dashure-prev-bar"><label class="dashure-search"><i class="ti ti-search" aria-hidden="true"></i>'
             . '<input type="search" class="form-control" placeholder="Buscar escola" data-prev-search></label>'
+            . '<button type="button" class="dashure-btn dashure-btn-ghost" data-prev-chart-toggle aria-expanded="false">'
+            . '<i class="ti ti-chart-pie" aria-hidden="true"></i> Gráfico</button>'
             . '<button type="button" class="dashure-btn dashure-btn-ghost" data-prev-copy' . ($missing === [] ? ' disabled' : '') . '>'
             . '<i class="ti ti-copy" aria-hidden="true"></i> Copiar lista de quem falta</button></div>';
+
+        // Pizza: das escolas que responderam, quantas relataram problemas.
+        $noProblems = $respondedSchools - $withProblems;
+        $pProblems = $respondedSchools > 0 ? round($withProblems * 100 / $respondedSchools, 1) : 0;
+        $pie = $respondedSchools > 0
+            ? 'conic-gradient(#dc2626 0 ' . $pProblems . '%, #16a34a ' . $pProblems . '% 100%)'
+            : 'conic-gradient(#cbd5e1 0 100%)';
+        $out .= '<div class="dashure-prev-chart" data-prev-chart hidden>'
+            . '<div class="dashure-prev-pie" style="background:' . $pie . '" role="img" aria-label="Relataram problemas: ' . $withProblems
+            . ' de ' . $respondedSchools . '"><span><strong>' . $respondedSchools . '</strong>responderam</span></div>'
+            . '<ul class="dashure-prev-legend">'
+            . '<li><i style="background:#dc2626"></i> Relataram problemas <strong>' . $withProblems . '</strong> (' . $pProblems . '%)</li>'
+            . '<li><i style="background:#16a34a"></i> Não relataram problemas <strong>' . $noProblems . '</strong> ('
+            . ($respondedSchools > 0 ? round(100 - $pProblems, 1) : 0) . '%)</li></ul></div>';
 
         $out .= '<div class="dashure-prev-grid">';
 
