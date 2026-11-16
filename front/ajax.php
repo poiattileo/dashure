@@ -48,6 +48,21 @@ try {
             break;
         case 'prev_panel':
             echo json_encode(['ok' => true, 'html' => PluginDashureHome::renderPreventiva((string) ($_POST['month'] ?? ''))], JSON_UNESCAPED_UNICODE);
+            // Rede de segurança: se a ação automática do Tralla não estiver rodando, o painel aberto
+            // dispara a busca de respostas (no máx. a cada 5 min) depois de responder, sem atrasar a tela.
+            if (class_exists('PluginTrallaPreventiva') || is_file(GLPI_ROOT . '/plugins/tralla/inc/preventiva.class.php')) {
+                if (function_exists('fastcgi_finish_request')) {
+                    session_write_close();
+                    fastcgi_finish_request();
+                }
+                try {
+                    require_once GLPI_ROOT . '/plugins/tralla/inc/config.class.php';
+                    require_once GLPI_ROOT . '/plugins/tralla/inc/preventiva.class.php';
+                    PluginTrallaPreventiva::importIfDue();
+                } catch (Throwable $e) {
+                    error_log('[Dashure] busca Preventiva: ' . $e->getMessage());
+                }
+            }
             break;
         case 'note_secret':
             if (!PluginDashureNote::canView()) {
