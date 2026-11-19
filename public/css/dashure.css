@@ -522,3 +522,14 @@ body.dashure-modal-open { overflow: hidden; }
 .dashure-bar:hover > i { background: #1d4ed8; transform: scaleY(1.06) scaleX(1.12); }
 .dashure-bar-n { color: #0f172a; font-size: .75rem; font-weight: 700; }
 .dashure-bar-d { color: #64748b; font-size: .7rem; margin-top: 3px; }
+
+.dashure-prev-problem { color: #b91c1c; display: block; font-size: .78rem; margin-top: 2px; }
+.dashure-trends { align-items: flex-end; display: flex; gap: 14px; height: 150px; }
+.dashure-trend { align-items: center; display: flex; flex: 1 1 0; flex-direction: column; height: 100%; justify-content: flex-end; max-width: 70px; }
+.dashure-trend-bars { align-items: flex-end; display: flex; gap: 3px; height: 100%; width: 100%; }
+.dashure-trend-bars > i { border-radius: 4px 4px 0 0; display: block; flex: 1; position: relative; transition: transform .18s ease, filter .18s ease; transform-origin: bottom; }
+.dashure-trend-bars > i b { color: #334155; font-size: .62rem; left: 50%; position: absolute; top: -14px; transform: translateX(-50%); }
+.dashure-trend:hover .dashure-trend-bars > i { filter: brightness(1.1); transform: scaleX(1.12); }
+.dashure-trend-bars .is-resp { background: #2563eb; }
+.dashure-trend-bars .is-prob { background: #dc2626; }
+.dashure-trend-legend { margin-top: 8px; }

@@ -255,6 +255,57 @@ class PluginDashureHome extends CommonGLPI
             . ($bars === '' ? '<p class="dashure-empty">Sem respostas ainda.</p>' : '<div class="dashure-bars">' . $bars . '</div>') . '</div>';
     }
 
+    /** Evolução mês a mês (últimos 6 meses com quadro): % de escolas que responderam e % das respostas com problemas. */
+    private static function trendChart(array $months, array $schoolIds): string
+    {
+        global $DB;
+
+        $total = count($schoolIds);
+        $rows = [];
+        foreach (array_slice($months, 0, 6) as $m) {
+            $board = PluginTrallaPreventiva::targetBoard($m);
+            if ($board === null || !PluginTrallaBoard::canViewBoard((int) $board['id'])) {
+                continue;
+            }
+            $answered = [];
+            foreach ($DB->request([
+                'SELECT'    => ['c.entities_id', 'a.has_problems'],
+                'FROM'      => 'glpi_plugin_tralla_cards AS c',
+                'LEFT JOIN' => ['glpi_plugin_tralla_preventiva_answers AS a' => ['ON' => ['a' => 'plugin_tralla_cards_id', 'c' => 'id']]],
+                'WHERE'     => ['c.plugin_tralla_boards_id' => (int) $board['id'], 'c.stage' => 1, 'c.is_deleted' => 0],
+            ]) as $row) {
+                $entityId = (int) $row['entities_id'];
+                if (!in_array($entityId, $schoolIds, true)) {
+                    continue;
+                }
+                $answered[$entityId] = ($answered[$entityId] ?? false) || ((int) $row['has_problems'] === 1);
+            }
+            $responded = count($answered);
+            $problems = count(array_filter($answered));
+            $rows[$m] = [
+                'resp' => $total > 0 ? round($responded * 100 / $total) : 0,
+                'prob' => $responded > 0 ? round($problems * 100 / $responded) : 0,
+                'n'    => $responded, 'p' => $problems,
+            ];
+        }
+        if (count($rows) < 2) {
+            return '<div class="dashure-prev-chartbox"><h5>Evolução por mês</h5><p class="dashure-empty">Disponível quando houver ao menos 2 meses de respostas.</p></div>';
+        }
+        $rows = array_reverse($rows, true);
+        $bars = '';
+        foreach ($rows as $m => $r) {
+            $label = substr($m, 5, 2) . '/' . substr($m, 2, 2);
+            $bars .= '<div class="dashure-trend" title="' . self::h($label . ': ' . $r['n'] . ' de ' . $total . ' responderam (' . $r['resp'] . '%); '
+                    . $r['p'] . ' com problemas (' . $r['prob'] . '% das respostas)') . '"><div class="dashure-trend-bars">'
+                . '<i class="is-resp" style="height:' . max(3, (int) $r['resp']) . '%"><b>' . (int) $r['resp'] . '%</b></i>'
+                . '<i class="is-prob" style="height:' . max(3, (int) $r['prob']) . '%"><b>' . (int) $r['prob'] . '%</b></i>'
+                . '</div><span class="dashure-bar-d">' . self::h($label) . '</span></div>';
+        }
+        return '<div class="dashure-prev-chartbox"><h5>Evolução por mês</h5><div class="dashure-trends">' . $bars . '</div>'
+            . '<ul class="dashure-prev-legend dashure-trend-legend"><li><i style="background:#2563eb"></i> % de escolas que responderam</li>'
+            . '<li><i style="background:#dc2626"></i> % das respostas com problemas</li></ul></div>';
+    }
+
     /** Quem já respondeu o formulário de Preventiva e quem falta (escolas = entidades sem filhas). */
     public static function renderPreventiva(?string $month = null): string
     {
@@ -316,7 +367,7 @@ class PluginDashureHome extends CommonGLPI
         // Respostas = cards do quadro Preventiva que não foram excluídos.
         $answers = [];
         foreach ($DB->request([
-            'SELECT'    => ['c.id', 'c.entities_id', 'c.name', 'c.date_creation', 'a.answered_at', 'a.has_problems'],
+            'SELECT'    => ['c.id', 'c.entities_id', 'c.name', 'c.date_creation', 'a.answered_at', 'a.has_problems', 'a.problems_text'],
             'FROM'      => 'glpi_plugin_tralla_cards AS c',
             'LEFT JOIN' => ['glpi_plugin_tralla_preventiva_answers AS a' => ['ON' => ['a' => 'plugin_tralla_cards_id', 'c' => 'id']]],
             'WHERE'     => ['c.plugin_tralla_boards_id' => $boardId, 'c.stage' => 1, 'c.is_deleted' => 0],
@@ -325,7 +376,7 @@ class PluginDashureHome extends CommonGLPI
             $entityId = (int) $row['entities_id'];
             $when = (string) ($row['answered_at'] ?: $row['date_creation']);
             if (!isset($answers[$entityId])) {
-                $answers[$entityId] = ['name' => (string) $row['name'], 'count' => 0, 'last' => $when, 'card' => (int) $row['id'], 'problems' => false];
+                $answers[$entityId] = ['name' => (string) $row['name'], 'count' => 0, 'last' => $when, 'card' => (int) $row['id'], 'problems' => false, 'text' => ''];
             }
             $answers[$entityId]['count']++;
             if ($when > $answers[$entityId]['last']) {
@@ -334,6 +385,9 @@ class PluginDashureHome extends CommonGLPI
             }
             if ($row['has_problems'] !== null && (int) $row['has_problems'] === 1) {
                 $answers[$entityId]['problems'] = true;
+                if ($answers[$entityId]['text'] === '' && trim((string) $row['problems_text']) !== '') {
+                    $answers[$entityId]['text'] = trim(preg_replace('/\s+/', ' ', (string) $row['problems_text']));
+                }
             }
         }
 
@@ -402,6 +456,7 @@ class PluginDashureHome extends CommonGLPI
                 ['Faltam responder', count($missing), '#f59e0b', 'missing'],
             ])
             . self::dayBars('Respostas por dia', $perDay)
+            . self::trendChart($months, array_keys($schools))
             . '</div>';
 
         $out .= '<div class="dashure-prev-grid">';
@@ -434,7 +489,10 @@ class PluginDashureHome extends CommonGLPI
                     . '<span class="dashure-list-main"><strong>' . self::h($info['name']) . '</strong>'
                     . '<small>' . self::h(date('d/m/Y H:i', strtotime($info['last'])))
                     . ($info['count'] > 1 ? ' · ' . (int) $info['count'] . ' respostas' : '')
-                    . (!$info['listed'] ? ' · fora da lista do formulário' : '') . '</small></span></a></li>';
+                    . (!$info['listed'] ? ' · fora da lista do formulário' : '') . '</small>'
+                    . ($info['problems'] && $info['text'] !== ''
+                        ? '<small class="dashure-prev-problem" title="' . self::h($info['text']) . '">' . self::h(mb_strimwidth($info['text'], 0, 140, '…')) . '</small>' : '')
+                    . '</span></a></li>';
             }
             $out .= '</ul>';
         }
